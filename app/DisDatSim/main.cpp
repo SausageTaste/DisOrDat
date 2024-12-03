@@ -7,7 +7,171 @@
 
 namespace {
 
+    enum class PduType {
+        other = 0,
+        entity_state = 1,
+        fire = 2,
+        detonation = 3,
+        collision = 4,
+        service_request = 5,
+        resupply_offer = 6,
+        resupply_received = 7,
+        resupply_cancel = 8,
+        repair_complete = 9,
+        repair_response = 10,
+        create_entity = 11,
+        remove_entity = 12,
+        start_resume = 13,
+        stop_freeze = 14,
+        acknowledge = 15,
+        action_request = 16,
+        action_response = 17,
+        data_query = 18,
+        set_data = 19,
+        data = 20,
+        event_report = 21,
+        comment = 22,
+        electronic_emission = 23,
+        designator = 24,
+        transmitter = 25,
+        signal = 26,
+        receiver = 27,
+        announce_object = 129,
+        delete_object = 130,
+        describe_application = 131,
+        describe_event = 132,
+        describe_object = 133,
+        request_event = 134,
+        request_object = 135,
+        time_space_position_indicator_fi = 140,
+        appearance_fi = 141,
+        articulated_parts_fi = 142,
+        fire_fi = 143,
+        detonation_fi = 144,
+        point_object_state = 150,
+        linear_object_state = 151,
+        areal_object_state = 152,
+        environment = 153,
+        transfer_control_request = 155,
+        transfer_control = 156,
+        transfer_control_acknowledge = 157,
+        intercom_control = 160,
+        intercom_signal = 161,
+        aggregate = 170,
+    };
+
+    const char* to_str(PduType pdu_type) {
+        switch (pdu_type) {
+            case PduType::other:
+                return "other";
+            case PduType::entity_state:
+                return "entity_state";
+            case PduType::fire:
+                return "fire";
+            case PduType::detonation:
+                return "detonation";
+            case PduType::collision:
+                return "collision";
+            case PduType::service_request:
+                return "service_request";
+            case PduType::resupply_offer:
+                return "resupply_offer";
+            case PduType::resupply_received:
+                return "resupply_received";
+            case PduType::resupply_cancel:
+                return "resupply_cancel";
+            case PduType::repair_complete:
+                return "repair_complete";
+            case PduType::repair_response:
+                return "repair_response";
+            case PduType::create_entity:
+                return "create_entity";
+            case PduType::remove_entity:
+                return "remove_entity";
+            case PduType::start_resume:
+                return "start_resume";
+            case PduType::stop_freeze:
+                return "stop_freeze";
+            case PduType::acknowledge:
+                return "acknowledge";
+            case PduType::action_request:
+                return "action_request";
+            case PduType::action_response:
+                return "action_response";
+            case PduType::data_query:
+                return "data_query";
+            case PduType::set_data:
+                return "set_data";
+            case PduType::data:
+                return "data";
+            case PduType::event_report:
+                return "event_report";
+            case PduType::comment:
+                return "comment";
+            case PduType::electronic_emission:
+                return "electronic_emission";
+            case PduType::designator:
+                return "designator";
+            case PduType::transmitter:
+                return "transmitter";
+            case PduType::signal:
+                return "signal";
+            case PduType::receiver:
+                return "receiver";
+            case PduType::announce_object:
+                return "announce_object";
+            case PduType::delete_object:
+                return "delete_object";
+            case PduType::describe_application:
+                return "describe_application";
+            case PduType::describe_event:
+                return "describe_event";
+            case PduType::describe_object:
+                return "describe_object";
+            case PduType::request_event:
+                return "request_event";
+            case PduType::request_object:
+                return "request_object";
+            case PduType::time_space_position_indicator_fi:
+                return "time_space_position_indicator_fi";
+            case PduType::appearance_fi:
+                return "appearance_fi";
+            case PduType::articulated_parts_fi:
+                return "articulated_parts_fi";
+            case PduType::fire_fi:
+                return "fire_fi";
+            case PduType::detonation_fi:
+                return "detonation_fi";
+            case PduType::point_object_state:
+                return "point_object_state";
+            case PduType::linear_object_state:
+                return "linear_object_state";
+            case PduType::areal_object_state:
+                return "areal_object_state";
+            case PduType::environment:
+                return "environment";
+            case PduType::transfer_control_request:
+                return "transfer_control_request";
+            case PduType::transfer_control:
+                return "transfer_control";
+            case PduType::transfer_control_acknowledge:
+                return "transfer_control_acknowledge";
+            case PduType::intercom_control:
+                return "intercom_control";
+            case PduType::intercom_signal:
+                return "intercom_signal";
+            case PduType::aggregate:
+                return "aggregate";
+        }
+        return "unknown";
+    }
+
+
     struct PduHeader {
+        PduType pdu_type() const { return static_cast<PduType>(pdu_type_); }
+
+        const char* pdu_type_str() const { return ::to_str(this->pdu_type()); }
+
         uint8_t version_;
         uint8_t exercise_id_;
         uint8_t pdu_type_;
@@ -193,7 +357,7 @@ namespace {
                 "protocol_family={}, timestamp={}, length={}\n",
                 pdu_header->version_,
                 pdu_header->exercise_id_,
-                pdu_header->pdu_type_,
+                pdu_header->pdu_type_str(),
                 pdu_header->protocol_family_,
                 ::flip_byte_order(pdu_header->timestamp_),
                 ::flip_byte_order(pdu_header->length_)
