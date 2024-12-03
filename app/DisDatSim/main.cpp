@@ -176,33 +176,33 @@ namespace {
         uint8_t exercise_id_;
         uint8_t pdu_type_;
         uint8_t protocol_family_;
-        uint32_t timestamp_;
-        uint16_t length_;
-        uint16_t padding_;
+        sung::BEValue<uint32_t> timestamp_;
+        sung::BEValue<uint16_t> length_;
+        sung::BEValue<uint16_t> padding_;
     };
 
 
     struct SimAdress {
-        uint16_t site_id_;
-        uint16_t app_id_;
+        sung::BEValue<uint16_t> site_id_;
+        sung::BEValue<uint16_t> app_id_;
     };
 
 
     struct EnttId {
         SimAdress sim_addr_;
-        uint16_t entt_id_;
+        sung::BEValue<uint16_t> entt_id_;
     };
 
 
     struct FixedDatum {
-        uint32_t datum_id_;
-        uint32_t datum_value_;
+        sung::BEValue<uint32_t> datum_id_;
+        sung::BEValue<uint32_t> datum_value_;
     };
 
 
     struct VariableDatum {
-        uint32_t datum_id_;
-        uint32_t datum_length_;
+        sung::BEValue<uint32_t> datum_id_;
+        sung::BEValue<uint32_t> datum_length_;
         uint8_t* datum_;
     };
 
@@ -210,7 +210,7 @@ namespace {
     struct EnttType {
         uint8_t kind_;
         uint8_t domain_;
-        uint16_t country_;
+        sung::BEValue<uint16_t> country_;
         uint8_t category_;
         uint8_t subcategory_;
         uint8_t specific_;
@@ -219,23 +219,23 @@ namespace {
 
 
     struct LinearVelVector {
-        float x_;
-        float y_;
-        float z_;
+        sung::BEValue<float> x_;
+        sung::BEValue<float> y_;
+        sung::BEValue<float> z_;
     };
 
 
     struct WorldCoord {
-        double x_;
-        double y_;
-        double z_;
+        sung::BEValue<double> x_;
+        sung::BEValue<double> y_;
+        sung::BEValue<double> z_;
     };
 
 
     struct EulerAngles {
-        float psi_;
-        float theta_;
-        float phi_;
+        sung::BEValue<float> psi_;
+        sung::BEValue<float> theta_;
+        sung::BEValue<float> phi_;
     };
 
 
@@ -243,10 +243,10 @@ namespace {
         PduHeader header_;
         EnttId originating_entt_;
         EnttId receiving_entt_;
-        uint32_t request_id_;
-        uint32_t padding_;
-        uint32_t num_of_fixed_datum_;
-        uint32_t num_of_variable_datum_;
+        sung::BEValue<uint32_t> request_id_;
+        sung::BEValue<uint32_t> padding_;
+        sung::BEValue<uint32_t> num_of_fixed_datum_;
+        sung::BEValue<uint32_t> num_of_variable_datum_;
     };
 
 
@@ -336,8 +336,8 @@ namespace {
                 pdu_header->exercise_id_,
                 pdu_header->pdu_type_str(),
                 pdu_header->protocol_family_,
-                sung::flip_byte_order(pdu_header->timestamp_),
-                sung::flip_byte_order(pdu_header->length_)
+                pdu_header->timestamp_.get(),
+                pdu_header->length_.get()
             );
 
             if (pdu_header->pdu_type_ == 1) {
@@ -350,10 +350,9 @@ namespace {
                 fmt::print(
                     "  entt_id={}:{}:{}, force_id={}, "
                     "num_of_articulation_param={}\n",
-                    sung::flip_byte_order(entt_pdu->entt_id_.sim_addr_.site_id_
-                    ),
-                    sung::flip_byte_order(entt_pdu->entt_id_.sim_addr_.app_id_),
-                    sung::flip_byte_order(entt_pdu->entt_id_.entt_id_),
+                    entt_pdu->entt_id_.sim_addr_.site_id_.get(),
+                    entt_pdu->entt_id_.sim_addr_.app_id_.get(),
+                    entt_pdu->entt_id_.entt_id_.get(),
                     entt_pdu->force_id_,
                     entt_pdu->num_of_articulation_param_
                 );
@@ -363,7 +362,7 @@ namespace {
                     "subcategory={}, specific={}, extra={}\n",
                     entt_pdu->entt_type_.kind_,
                     entt_pdu->entt_type_.domain_,
-                    sung::flip_byte_order(entt_pdu->entt_type_.country_),
+                    entt_pdu->entt_type_.country_.get(),
                     entt_pdu->entt_type_.category_,
                     entt_pdu->entt_type_.subcategory_,
                     entt_pdu->entt_type_.specific_,
@@ -376,7 +375,7 @@ namespace {
                     "alt_extra={}\n",
                     entt_pdu->alt_entt_type_.kind_,
                     entt_pdu->alt_entt_type_.domain_,
-                    sung::flip_byte_order(entt_pdu->alt_entt_type_.country_),
+                    entt_pdu->alt_entt_type_.country_.get(),
                     entt_pdu->alt_entt_type_.category_,
                     entt_pdu->alt_entt_type_.subcategory_,
                     entt_pdu->alt_entt_type_.specific_,
@@ -385,24 +384,24 @@ namespace {
 
                 fmt::print(
                     "  linear_vel={{x={:.2f}, y={:.2f}, z={:.2f}}}\n",
-                    sung::flip_byte_order(entt_pdu->entt_linear_vel_.x_),
-                    sung::flip_byte_order(entt_pdu->entt_linear_vel_.y_),
-                    sung::flip_byte_order(entt_pdu->entt_linear_vel_.z_)
+                    entt_pdu->entt_linear_vel_.x_.get(),
+                    entt_pdu->entt_linear_vel_.y_.get(),
+                    entt_pdu->entt_linear_vel_.z_.get()
                 );
 
                 fmt::print(
                     "  loc={{x={:.2f}, y={:.2f}, z={:.2f}}}\n",
-                    sung::flip_byte_order(entt_pdu->entt_loc_.x_),
-                    sung::flip_byte_order(entt_pdu->entt_loc_.y_),
-                    sung::flip_byte_order(entt_pdu->entt_loc_.z_)
+                    entt_pdu->entt_loc_.x_.get(),
+                    entt_pdu->entt_loc_.y_.get(),
+                    entt_pdu->entt_loc_.z_.get()
                 );
 
                 fmt::print(
                     "  orient={{psi={:.2f}, theta={:.2f}, "
                     "phi={:.2f}}}\n",
-                    sung::flip_byte_order(entt_pdu->entt_orient_.psi_),
-                    sung::flip_byte_order(entt_pdu->entt_orient_.theta_),
-                    sung::flip_byte_order(entt_pdu->entt_orient_.phi_)
+                    entt_pdu->entt_orient_.psi_.get(),
+                    entt_pdu->entt_orient_.theta_.get(),
+                    entt_pdu->entt_orient_.phi_.get()
                 );
             } else if (pdu_header->pdu_type_ == 20) {
                 fmt::print("Data PDU\n");
@@ -413,47 +412,37 @@ namespace {
 
                 fmt::print(
                     "  originating_entt={}:{}:{}\n",
-                    sung::flip_byte_order(
-                        data_pdu->originating_entt_.sim_addr_.site_id_
-                    ),
-                    sung::flip_byte_order(
-                        data_pdu->originating_entt_.sim_addr_.app_id_
-                    ),
-                    sung::flip_byte_order(data_pdu->originating_entt_.entt_id_)
+                    data_pdu->originating_entt_.sim_addr_.site_id_.get(),
+                    data_pdu->originating_entt_.sim_addr_.app_id_.get(),
+                    data_pdu->originating_entt_.entt_id_.get()
                 );
 
                 fmt::print(
                     "  receiving_entt={}:{}:{}\n",
-                    sung::flip_byte_order(
-                        data_pdu->receiving_entt_.sim_addr_.site_id_
-                    ),
-                    sung::flip_byte_order(
-                        data_pdu->receiving_entt_.sim_addr_.app_id_
-                    ),
-                    sung::flip_byte_order(data_pdu->receiving_entt_.entt_id_)
+                    data_pdu->receiving_entt_.sim_addr_.site_id_.get(),
+                    data_pdu->receiving_entt_.sim_addr_.app_id_.get(),
+                    data_pdu->receiving_entt_.entt_id_.get()
                 );
 
                 fmt::print(
                     "  request_id={}, padding={}, num_of_fixed_datum={}, "
                     "num_of_variable_datum={}\n",
-                    sung::flip_byte_order(data_pdu->request_id_),
-                    sung::flip_byte_order(data_pdu->padding_),
-                    sung::flip_byte_order(data_pdu->num_of_fixed_datum_),
-                    sung::flip_byte_order(data_pdu->num_of_variable_datum_)
+                    data_pdu->request_id_.get(),
+                    data_pdu->padding_.get(),
+                    data_pdu->num_of_fixed_datum_.get(),
+                    data_pdu->num_of_variable_datum_.get()
                 );
 
-                const auto fixed_data_count = sung::flip_byte_order(
-                    data_pdu->num_of_fixed_datum_
-                );
+                const auto fixed_data_num = data_pdu->num_of_fixed_datum_.get();
                 const auto fixed_data = reinterpret_cast<::FixedDatum*>(
                     recv_buffer_.data() + sizeof(::DataPdu)
                 );
-                fmt::print("Fixed data ({})\n", fixed_data_count);
-                for (size_t i = 0; i < fixed_data_count; ++i) {
+                fmt::print("Fixed data ({})\n", fixed_data_num);
+                for (size_t i = 0; i < fixed_data_num; ++i) {
                     fmt::print(
                         "  id={}, value={}\n",
-                        sung::flip_byte_order(fixed_data[i].datum_id_),
-                        sung::flip_byte_order(fixed_data[i].datum_value_)
+                        fixed_data[i].datum_id_.get(),
+                        fixed_data[i].datum_value_.get()
                     );
                 }
             }
