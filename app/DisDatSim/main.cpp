@@ -283,29 +283,6 @@ namespace {
         std::cout << '\n';
     }
 
-    template <typename T>
-    T flip_byte_order(T value) {
-        T result = 0;
-        for (size_t i = 0; i < sizeof(T); ++i) {
-            result <<= 8;
-            result |= value & 0xFF;
-            value >>= 8;
-        }
-        return result;
-    }
-
-    template <>
-    float flip_byte_order(float value) {
-        uint32_t result = flip_byte_order(*reinterpret_cast<uint32_t*>(&value));
-        return *reinterpret_cast<float*>(&result);
-    }
-
-    template <>
-    double flip_byte_order(double value) {
-        uint64_t result = flip_byte_order(*reinterpret_cast<uint64_t*>(&value));
-        return *reinterpret_cast<double*>(&result);
-    }
-
 
     class UdpServer {
 
@@ -359,8 +336,8 @@ namespace {
                 pdu_header->exercise_id_,
                 pdu_header->pdu_type_str(),
                 pdu_header->protocol_family_,
-                ::flip_byte_order(pdu_header->timestamp_),
-                ::flip_byte_order(pdu_header->length_)
+                sung::flip_byte_order(pdu_header->timestamp_),
+                sung::flip_byte_order(pdu_header->length_)
             );
 
             if (pdu_header->pdu_type_ == 1) {
@@ -373,9 +350,10 @@ namespace {
                 fmt::print(
                     "  entt_id={}:{}:{}, force_id={}, "
                     "num_of_articulation_param={}\n",
-                    ::flip_byte_order(entt_pdu->entt_id_.sim_addr_.site_id_),
-                    ::flip_byte_order(entt_pdu->entt_id_.sim_addr_.app_id_),
-                    ::flip_byte_order(entt_pdu->entt_id_.entt_id_),
+                    sung::flip_byte_order(entt_pdu->entt_id_.sim_addr_.site_id_
+                    ),
+                    sung::flip_byte_order(entt_pdu->entt_id_.sim_addr_.app_id_),
+                    sung::flip_byte_order(entt_pdu->entt_id_.entt_id_),
                     entt_pdu->force_id_,
                     entt_pdu->num_of_articulation_param_
                 );
@@ -385,7 +363,7 @@ namespace {
                     "subcategory={}, specific={}, extra={}\n",
                     entt_pdu->entt_type_.kind_,
                     entt_pdu->entt_type_.domain_,
-                    ::flip_byte_order(entt_pdu->entt_type_.country_),
+                    sung::flip_byte_order(entt_pdu->entt_type_.country_),
                     entt_pdu->entt_type_.category_,
                     entt_pdu->entt_type_.subcategory_,
                     entt_pdu->entt_type_.specific_,
@@ -398,7 +376,7 @@ namespace {
                     "alt_extra={}\n",
                     entt_pdu->alt_entt_type_.kind_,
                     entt_pdu->alt_entt_type_.domain_,
-                    ::flip_byte_order(entt_pdu->alt_entt_type_.country_),
+                    sung::flip_byte_order(entt_pdu->alt_entt_type_.country_),
                     entt_pdu->alt_entt_type_.category_,
                     entt_pdu->alt_entt_type_.subcategory_,
                     entt_pdu->alt_entt_type_.specific_,
@@ -407,24 +385,24 @@ namespace {
 
                 fmt::print(
                     "  linear_vel={{x={:.2f}, y={:.2f}, z={:.2f}}}\n",
-                    ::flip_byte_order(entt_pdu->entt_linear_vel_.x_),
-                    ::flip_byte_order(entt_pdu->entt_linear_vel_.y_),
-                    ::flip_byte_order(entt_pdu->entt_linear_vel_.z_)
+                    sung::flip_byte_order(entt_pdu->entt_linear_vel_.x_),
+                    sung::flip_byte_order(entt_pdu->entt_linear_vel_.y_),
+                    sung::flip_byte_order(entt_pdu->entt_linear_vel_.z_)
                 );
 
                 fmt::print(
                     "  loc={{x={:.2f}, y={:.2f}, z={:.2f}}}\n",
-                    ::flip_byte_order(entt_pdu->entt_loc_.x_),
-                    ::flip_byte_order(entt_pdu->entt_loc_.y_),
-                    ::flip_byte_order(entt_pdu->entt_loc_.z_)
+                    sung::flip_byte_order(entt_pdu->entt_loc_.x_),
+                    sung::flip_byte_order(entt_pdu->entt_loc_.y_),
+                    sung::flip_byte_order(entt_pdu->entt_loc_.z_)
                 );
 
                 fmt::print(
                     "  orient={{psi={:.2f}, theta={:.2f}, "
                     "phi={:.2f}}}\n",
-                    ::flip_byte_order(entt_pdu->entt_orient_.psi_),
-                    ::flip_byte_order(entt_pdu->entt_orient_.theta_),
-                    ::flip_byte_order(entt_pdu->entt_orient_.phi_)
+                    sung::flip_byte_order(entt_pdu->entt_orient_.psi_),
+                    sung::flip_byte_order(entt_pdu->entt_orient_.theta_),
+                    sung::flip_byte_order(entt_pdu->entt_orient_.phi_)
                 );
             } else if (pdu_header->pdu_type_ == 20) {
                 fmt::print("Data PDU\n");
@@ -435,36 +413,36 @@ namespace {
 
                 fmt::print(
                     "  originating_entt={}:{}:{}\n",
-                    ::flip_byte_order(
+                    sung::flip_byte_order(
                         data_pdu->originating_entt_.sim_addr_.site_id_
                     ),
-                    ::flip_byte_order(
+                    sung::flip_byte_order(
                         data_pdu->originating_entt_.sim_addr_.app_id_
                     ),
-                    ::flip_byte_order(data_pdu->originating_entt_.entt_id_)
+                    sung::flip_byte_order(data_pdu->originating_entt_.entt_id_)
                 );
 
                 fmt::print(
                     "  receiving_entt={}:{}:{}\n",
-                    ::flip_byte_order(
+                    sung::flip_byte_order(
                         data_pdu->receiving_entt_.sim_addr_.site_id_
                     ),
-                    ::flip_byte_order(
+                    sung::flip_byte_order(
                         data_pdu->receiving_entt_.sim_addr_.app_id_
                     ),
-                    ::flip_byte_order(data_pdu->receiving_entt_.entt_id_)
+                    sung::flip_byte_order(data_pdu->receiving_entt_.entt_id_)
                 );
 
                 fmt::print(
                     "  request_id={}, padding={}, num_of_fixed_datum={}, "
                     "num_of_variable_datum={}\n",
-                    ::flip_byte_order(data_pdu->request_id_),
-                    ::flip_byte_order(data_pdu->padding_),
-                    ::flip_byte_order(data_pdu->num_of_fixed_datum_),
-                    ::flip_byte_order(data_pdu->num_of_variable_datum_)
+                    sung::flip_byte_order(data_pdu->request_id_),
+                    sung::flip_byte_order(data_pdu->padding_),
+                    sung::flip_byte_order(data_pdu->num_of_fixed_datum_),
+                    sung::flip_byte_order(data_pdu->num_of_variable_datum_)
                 );
 
-                const auto fixed_data_count = ::flip_byte_order(
+                const auto fixed_data_count = sung::flip_byte_order(
                     data_pdu->num_of_fixed_datum_
                 );
                 const auto fixed_data = reinterpret_cast<::FixedDatum*>(
@@ -474,8 +452,8 @@ namespace {
                 for (size_t i = 0; i < fixed_data_count; ++i) {
                     fmt::print(
                         "  id={}, value={}\n",
-                        ::flip_byte_order(fixed_data[i].datum_id_),
-                        ::flip_byte_order(fixed_data[i].datum_value_)
+                        sung::flip_byte_order(fixed_data[i].datum_id_),
+                        sung::flip_byte_order(fixed_data[i].datum_value_)
                     );
                 }
             }
