@@ -5,11 +5,15 @@
 
 #include <spdlog/spdlog.h>
 #include <asio.hpp>
+#include <sung/general/angle.hpp>
 #include <sung/general/bytes.hpp>
 #include <sung/general/time.hpp>
 
 
 namespace {
+
+    using Angle = sung::TAngle<double>;
+
 
     enum class PduType {
         other = 0,
@@ -319,11 +323,43 @@ namespace {
     static_assert(8 * sizeof(WorldCoord) == 192);
 
 
+    /**
+     * On VR-Forces, the rest orientation is such that top face of an entity is
+     * towards along the north pole axis, front direction is towards from center
+     * to the Greenwich observatory.
+     */
     struct EulerAngles {
-        EulerAngles& set(float psi, float theta, float phi) {
-            psi_.set(psi);
-            theta_.set(theta);
-            phi_.set(phi);
+        EulerAngles& clear() {
+            psi_.set(0);
+            theta_.set(0);
+            phi_.set(0);
+            return *this;
+        }
+
+        EulerAngles& set(
+            const Angle& psi, const Angle& theta, const Angle& phi
+        ) {
+            psi_.set(psi.rad());
+            theta_.set(theta.rad());
+            phi_.set(phi.rad());
+            return *this;
+        }
+
+        // Psi is the heading angle.
+        EulerAngles& set_head(const Angle& psi) {
+            psi_.set(psi.rad());
+            return *this;
+        }
+
+        // Theta is the elevation angle.
+        EulerAngles& set_elev(const Angle& theta) {
+            theta_.set(theta.rad());
+            return *this;
+        }
+
+        // Phi is the bank angle.
+        EulerAngles& set_roll(const Angle& phi) {
+            phi_.set(phi.rad());
             return *this;
         }
 
@@ -348,8 +384,8 @@ namespace {
 
 
     struct DeadReckoningParam {
-        DeadReckoningParam& clear() {
-            algorithm_ = 0;
+        DeadReckoningParam& set_default() {
+            algorithm_ = 1;
             other_params_.fill(0);
             linear_acc_.set(0, 0, 0);
             angular_vel_.set(0, 0, 0);
@@ -554,17 +590,18 @@ namespace {
             pdu.entt_id_.set(1, 3003, 1001);
             pdu.force_id_ = 3;
             pdu.num_of_articulation_param_ = 0;
-            pdu.entt_type_.set(1, 1, 225, 1, 1, 1, 0);
+            pdu.entt_type_.set(1, 2, 45, 1, 7, 0, 0);
             pdu.alt_entt_type_.set(1, 1, 225, 1, 1, 1, 0);
-            pdu.entt_linear_vel_.set(2, 3, 4);
+            pdu.entt_linear_vel_.set(0, 0, 0);
             pdu.entt_loc_.set(-3049328.82, 4049133.27, 3859976.86);
-            pdu.entt_orient_.set(0, 0, 0);
+            pdu.entt_orient_.clear();
             pdu.entt_appearance_.clear();
-            pdu.dead_reckoning_param_.clear();
-            pdu.dead_reckoning_param_.algorithm_ = 1;
+            pdu.dead_reckoning_param_.set_default();
             pdu.entt_marking_.clear();
             pdu.entt_capabilities_.set(0);
             pdu.padding_.fill(0);
+
+            const auto t = sung::get_time_unix();
 
             socket_.send_to(asio::buffer(&pdu, sizeof(pdu)), endpoint_);
             SPDLOG_INFO(
