@@ -1,9 +1,11 @@
 #include <iostream>
 #include <thread>
+#include <unordered_map>
 
 #include <spdlog/spdlog.h>
 #include <asio.hpp>
 #include <sung/general/bytes.hpp>
+#include <sung/general/time.hpp>
 
 
 namespace {
@@ -287,6 +289,68 @@ namespace {
     }
 
 
+    class ClientRecord {
+
+    public:
+        double elapsed_since_comm() const {
+            return std::min(last_recv_.elapsed(), last_send_.elapsed());
+        }
+
+        sung::MonotonicRealtimeTimer last_recv_;
+        sung::MonotonicRealtimeTimer last_send_;
+    };
+
+
+    std::string to_str(asio::ip::udp::endpoint ep) {
+        return fmt::format("{}:{}", ep.address().to_string(), ep.port());
+    }
+
+
+    class ClientManager {
+
+    public:
+        void update() {
+            for (auto it = data_.begin(); it != data_.end();) {
+                if (it->second.elapsed_since_comm() > 10) {
+                    SPDLOG_INFO("Client timed out: {}", ::to_str(it->first));
+                    it = data_.erase(it);
+                } else {
+                    ++it;
+                }
+            }
+        }
+
+        ClientRecord& notify_recv(const asio::ip::udp::endpoint& ep) {
+            auto it = data_.find(ep);
+            if (it == data_.end()) {
+                it = data_.emplace(ep, ClientRecord{}).first;
+                SPDLOG_INFO("Client added: {}", ::to_str(ep));
+            }
+
+            it->second.last_recv_.check();
+
+            return it->second;
+        }
+
+        void print_all() const {
+            SPDLOG_INFO("Clients {}", data_.size());
+
+            for (const auto& [ep, record] : data_) {
+                SPDLOG_INFO(
+                    "  - {}:{}: recv={}, send={}",
+                    ep.address().to_string(),
+                    ep.port(),
+                    record.last_recv_.elapsed(),
+                    record.last_send_.elapsed()
+                );
+            }
+        }
+
+    private:
+        std::unordered_map<asio::ip::udp::endpoint, ClientRecord> data_;
+    };
+
+
     class UdpServer {
 
     public:
@@ -295,13 +359,14 @@ namespace {
                   io_context, asio::ip::udp::endpoint(asio::ip::udp::v4(), 3000)
               ) {
             this->start_recv();
+            // this->start_send();
         }
 
     private:
         void start_recv() {
             socket_.async_receive_from(
                 asio::buffer(recv_buffer_),
-                remote_endpoint_,
+                remote_ep_tmp_,
                 std::bind(
                     &UdpServer::handle_recv,
                     this,
@@ -311,6 +376,26 @@ namespace {
             );
         }
 
+        void start_send() {
+            /*SPDLOG_INFO(
+                "Sending to {}:{} ({})",
+                remote_endpoint_.address().to_string(),
+                remote_endpoint_.port(),
+                std::hash<std::thread::id>{}(std::this_thread::get_id())
+            );
+
+            socket_.async_send_to(
+                send_buffer_,
+                remote_endpoint_,
+                std::bind(
+                    &UdpServer::handle_send,
+                    this,
+                    asio::placeholders::error,
+                    asio::placeholders::bytes_transferred
+                )
+            );*/
+        }
+
         void handle_recv(
             const std::error_code& error, size_t bytes_transferred
         ) {
@@ -318,6 +403,9 @@ namespace {
                 std::cerr << "Recv error: " << error.message() << std::endl;
                 return;
             }
+
+            clients_.notify_recv(remote_ep_tmp_);
+            clients_.update();
 
             const auto line_count = bytes_transferred / 16;
 
@@ -347,7 +435,19 @@ namespace {
                 pdu_header->length_.get()
             );
 
+            SPDLOG_INFO(
+                "Received from {}: size={}, type={}",
+                ::to_str(remote_ep_tmp_),
+                bytes_transferred,
+                pdu_header->pdu_type_str()
+            );
+
             if (pdu_header->pdu_type_ == 1) {
+                send_buffer_.clear();
+                send_buffer_.push_back(
+                    asio::buffer(recv_buffer_.data(), bytes_transferred)
+                );
+
                 ss << fmt::format("Entity State PDU\n");
 
                 const auto entt_pdu = reinterpret_cast<::EnttPdu*>(
@@ -454,19 +554,36 @@ namespace {
                 }
             }
 
-            SPDLOG_INFO(ss.str().substr(0, ss.str().size() - 1));
+            // SPDLOG_INFO(ss.str().substr(0, ss.str().size() - 1));
             this->start_recv();
         }
 
         void handle_send(
-            std::shared_ptr<std::string> /*message*/,
-            const std::error_code& /*error*/,
-            std::size_t /*bytes_transferred*/
-        ) {}
+            const std::error_code& error, std::size_t bytes_transferred
+        ) {
+            if (error) {
+                SPDLOG_ERROR(
+                    "Send error: {} ({})",
+                    error.message(),
+                    std::hash<std::thread::id>{}(std::this_thread::get_id())
+                );
+            } else {
+                SPDLOG_INFO(
+                    "Sent {} bytes ({})",
+                    bytes_transferred,
+                    std::hash<std::thread::id>{}(std::this_thread::get_id())
+                );
+            }
+
+            std::this_thread::sleep_for(std::chrono::seconds(1));
+            this->start_send();
+        }
 
         asio::ip::udp::socket socket_;
-        asio::ip::udp::endpoint remote_endpoint_;
+        asio::ip::udp::endpoint remote_ep_tmp_;
+        ClientManager clients_;
         std::array<char, 1024 * 8> recv_buffer_;
+        std::vector<asio::const_buffer> send_buffer_;
     };
 
 }  // namespace
@@ -479,7 +596,6 @@ int main() {
 
     while (true) {
         std::this_thread::sleep_for(std::chrono::seconds(1));
-        SPDLOG_INFO("Running...");
     }
 
     return 0;

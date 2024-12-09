@@ -6,3 +6,4 @@ target_link_libraries(DisDatSim
     sungtools::general
     spdlog::spdlog
 )
+target_compile_features(DisDatSim PUBLIC cxx_std_23)
