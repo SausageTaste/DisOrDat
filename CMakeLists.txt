@@ -6,6 +6,7 @@ project(DisOrDat)
 
 
 find_package(asio CONFIG REQUIRED)
+find_package(glm CONFIG REQUIRED)
 find_package(spdlog CONFIG REQUIRED)
 
 

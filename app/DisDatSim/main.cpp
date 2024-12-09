@@ -5,6 +5,8 @@
 
 #include <spdlog/spdlog.h>
 #include <asio.hpp>
+#include <glm/glm.hpp>
+#include <glm/gtc/quaternion.hpp>
 #include <sung/general/angle.hpp>
 #include <sung/general/bytes.hpp>
 #include <sung/general/time.hpp>
@@ -12,8 +14,64 @@
 
 namespace {
 
+    using Vec3 = glm::dvec3;
     using Angle = sung::TAngle<double>;
 
+    const auto CENTER_TO_PRIME_MERIDIAN = Vec3{ 1, 0, 0 };
+    const auto CENTER_TO_ASIA = Vec3{ 0, 1, 0 };
+    const auto CENTER_TO_NORTH = Vec3{ 0, 0, 1 };
+
+
+    class SimpleFixedWing {
+
+    public:
+        SimpleFixedWing()
+            : quat_(1, 0, 0, 0), pos_(-3049328.82, 4049133.27, 3859976.86) {}
+
+        void update(double dt) {
+            const auto anti_gravity_n = glm::normalize(pos_);
+
+            // Adjust roll
+            {
+                const auto dst_entt_left_n = glm::normalize(
+                    glm::cross(anti_gravity_n, this->entt_front())
+                );
+                const auto align = glm::dot(dst_entt_left_n, this->entt_up());
+                quat_ = glm::rotate(quat_, align * dt, this->entt_front());
+            }
+
+            // Adjust elevation
+            {
+                const auto align = glm::dot(anti_gravity_n, this->entt_front());
+                quat_ = glm::rotate(quat_, align * dt, this->entt_right());
+            }
+
+            // Head forward
+            {
+                const auto align = glm::dot(anti_gravity_n, this->entt_up());
+                if (align > 0.999)
+                    pos_ += this->entt_front() * 100000.0 * dt;
+            }
+        }
+
+        Vec3 make_eular() const {
+            const auto eular = glm::eulerAngles(quat_);
+            return Vec3(eular.z, eular.y, eular.x);
+        }
+
+        Vec3 entt_front() const { return quat_ * CENTER_TO_PRIME_MERIDIAN; }
+        Vec3 entt_up() const { return quat_ * (-CENTER_TO_NORTH); }
+        Vec3 entt_right() const { return quat_ * (CENTER_TO_ASIA); }
+
+        glm::dquat quat_;  // Quaternion
+        Vec3 pos_;         // Geocentric position
+        bool to_north = true;
+    };
+
+}  // namespace
+
+
+namespace {
 
     enum class PduType {
         other = 0,
@@ -316,6 +374,13 @@ namespace {
             return *this;
         }
 
+        WorldCoord& set(const Vec3& v) {
+            x_.set(v.x);
+            y_.set(v.y);
+            z_.set(v.z);
+            return *this;
+        }
+
         sung::BEValue<double> x_;
         sung::BEValue<double> y_;
         sung::BEValue<double> z_;
@@ -342,6 +407,13 @@ namespace {
             psi_.set(psi.rad());
             theta_.set(theta.rad());
             phi_.set(phi.rad());
+            return *this;
+        }
+
+        EulerAngles& set(const Vec3& radians) {
+            psi_.set(radians.x);
+            theta_.set(radians.y);
+            phi_.set(radians.z);
             return *this;
         }
 
@@ -562,6 +634,7 @@ namespace {
             socket_.set_option(asio::ip::udp::socket::reuse_address(true));
             socket_.set_option(asio::socket_base::broadcast(true));
 
+            timer_.check();
             this->start_tick();
         }
 
@@ -583,6 +656,9 @@ namespace {
         }
 
         void tick() {
+            const auto dt = timer_.check_get_elapsed();
+            fixed_wing_.update(dt);
+
             EnttPdu pdu;
             pdu.header_.set_default()
                 .set_type(::PduType::entity_state)
@@ -593,15 +669,13 @@ namespace {
             pdu.entt_type_.set(1, 2, 45, 1, 7, 0, 0);
             pdu.alt_entt_type_.set(1, 1, 225, 1, 1, 1, 0);
             pdu.entt_linear_vel_.set(0, 0, 0);
-            pdu.entt_loc_.set(-3049328.82, 4049133.27, 3859976.86);
-            pdu.entt_orient_.clear();
+            pdu.entt_loc_.set(fixed_wing_.pos_);
+            pdu.entt_orient_.set(fixed_wing_.make_eular());
             pdu.entt_appearance_.clear();
             pdu.dead_reckoning_param_.set_default();
             pdu.entt_marking_.clear();
             pdu.entt_capabilities_.set(0);
             pdu.padding_.fill(0);
-
-            const auto t = sung::get_time_unix();
 
             socket_.send_to(asio::buffer(&pdu, sizeof(pdu)), endpoint_);
             SPDLOG_INFO(
@@ -618,6 +692,8 @@ namespace {
         asio::ip::udp::socket socket_;
         asio::ip::udp::endpoint endpoint_;
         asio::steady_timer tick_timer_;
+        sung::MonotonicRealtimeTimer timer_;
+        ::SimpleFixedWing fixed_wing_;
     };
 
 
