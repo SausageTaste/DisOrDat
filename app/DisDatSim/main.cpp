@@ -526,7 +526,7 @@ namespace {
             socket_.set_option(asio::ip::udp::socket::reuse_address(true));
             socket_.set_option(asio::socket_base::broadcast(true));
 
-            tick_timer_.async_wait(std::bind(&UdpRadioTower::tick, this));
+            this->start_tick();
         }
 
         ~UdpRadioTower() {
@@ -539,6 +539,13 @@ namespace {
         }
 
     private:
+        void start_tick() {
+            tick_timer_ = asio::steady_timer(
+                io_context_, std::chrono::milliseconds(200)
+            );
+            tick_timer_.async_wait(std::bind(&UdpRadioTower::tick, this));
+        }
+
         void tick() {
             EnttPdu pdu;
             pdu.header_.set_default()
@@ -567,10 +574,7 @@ namespace {
                 pdu.header_.pdu_type_str()
             );
 
-            tick_timer_ = asio::steady_timer(
-                io_context_, std::chrono::milliseconds(5000)
-            );
-            tick_timer_.async_wait(std::bind(&UdpRadioTower::tick, this));
+            this->start_tick();
         }
 
         asio::io_context& io_context_;
