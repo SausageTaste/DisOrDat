@@ -50,7 +50,8 @@ namespace {
             {
                 const auto align = glm::dot(anti_gravity_n, this->entt_up());
                 if (align > 0.999)
-                    pos_ += this->entt_front() * 100000.0 * dt;
+                    speed_ = 1000000;
+                pos_ += this->entt_front() * speed_ * dt;
             }
         }
 
@@ -63,8 +64,9 @@ namespace {
         Vec3 entt_up() const { return quat_ * (-CENTER_TO_NORTH); }
         Vec3 entt_right() const { return quat_ * (CENTER_TO_ASIA); }
 
-        glm::dquat quat_;  // Quaternion
-        Vec3 pos_;         // Geocentric position
+        glm::dquat quat_;   // Quaternion
+        Vec3 pos_;          // Geocentric position
+        double speed_ = 0;  // Speed in m/s
         bool to_north = true;
     };
 
