@@ -1,3 +1,4 @@
+#include <chrono>
 #include <iostream>
 #include <thread>
 #include <unordered_map>
@@ -170,10 +171,33 @@ namespace {
     }
 
 
-    struct PduHeader {
+    class PduHeader {
+
+    public:
         PduType pdu_type() const { return static_cast<PduType>(pdu_type_); }
 
         const char* pdu_type_str() const { return ::to_str(this->pdu_type()); }
+
+        PduHeader& set_default() {
+            version_ = 7;
+            exercise_id_ = 1;
+            pdu_type_ = 0;
+            protocol_family_ = 5;
+            timestamp_.set(sung::get_time_unix());
+            length_ = 0;
+            padding_ = 0;
+            return *this;
+        }
+
+        PduHeader& set_type(PduType pdu_type) {
+            pdu_type_ = static_cast<uint8_t>(pdu_type);
+            return *this;
+        }
+
+        PduHeader& set_len(uint16_t len) {
+            length_ = len;
+            return *this;
+        }
 
         uint8_t version_;
         uint8_t exercise_id_;
@@ -183,6 +207,7 @@ namespace {
         sung::BEValue<uint16_t> length_;
         sung::BEValue<uint16_t> padding_;
     };
+    static_assert(8 * sizeof(PduHeader) == 96);
 
 
     struct SimAdress {
@@ -191,10 +216,31 @@ namespace {
     };
 
 
-    struct EnttId {
+    class EnttId {
+
+    public:
+        uint16_t site_id() const { return sim_addr_.site_id_.get(); }
+        uint16_t app_id() const { return sim_addr_.app_id_.get(); }
+        uint16_t entt_id() const { return entt_id_.get(); }
+
+        std::string to_str() const {
+            return fmt::format(
+                "{}:{}:{}", this->site_id(), this->app_id(), this->entt_id()
+            );
+        }
+
+        EnttId& set(uint16_t site_id, uint16_t app_id, uint16_t entt_id) {
+            sim_addr_.site_id_.set(site_id);
+            sim_addr_.app_id_.set(app_id);
+            entt_id_.set(entt_id);
+            return *this;
+        }
+
+    private:
         SimAdress sim_addr_;
         sung::BEValue<uint16_t> entt_id_;
     };
+    static_assert(8 * sizeof(EnttId) == 48);
 
 
     struct FixedDatum {
@@ -210,7 +256,28 @@ namespace {
     };
 
 
-    struct EnttType {
+    class EnttType {
+
+    public:
+        EnttType& set(
+            uint8_t kind,
+            uint8_t domain,
+            uint16_t country,
+            uint8_t category,
+            uint8_t subcategory,
+            uint8_t specific,
+            uint8_t extra
+        ) {
+            kind_ = kind;
+            domain_ = domain;
+            country_.set(country);
+            category_ = category;
+            subcategory_ = subcategory;
+            specific_ = specific;
+            extra_ = extra;
+            return *this;
+        }
+
         uint8_t kind_;
         uint8_t domain_;
         sung::BEValue<uint16_t> country_;
@@ -219,27 +286,95 @@ namespace {
         uint8_t specific_;
         uint8_t extra_;
     };
+    static_assert(8 * sizeof(EnttType) == 64);
 
 
     struct LinearVelVector {
+        LinearVelVector& set(float x, float y, float z) {
+            x_.set(x);
+            y_.set(y);
+            z_.set(z);
+            return *this;
+        }
+
         sung::BEValue<float> x_;
         sung::BEValue<float> y_;
         sung::BEValue<float> z_;
     };
+    static_assert(8 * sizeof(LinearVelVector) == 96);
 
 
     struct WorldCoord {
+        WorldCoord& set(double x, double y, double z) {
+            x_.set(x);
+            y_.set(y);
+            z_.set(z);
+            return *this;
+        }
+
         sung::BEValue<double> x_;
         sung::BEValue<double> y_;
         sung::BEValue<double> z_;
     };
+    static_assert(8 * sizeof(WorldCoord) == 192);
 
 
     struct EulerAngles {
+        EulerAngles& set(float psi, float theta, float phi) {
+            psi_.set(psi);
+            theta_.set(theta);
+            phi_.set(phi);
+            return *this;
+        }
+
         sung::BEValue<float> psi_;
         sung::BEValue<float> theta_;
         sung::BEValue<float> phi_;
     };
+    static_assert(8 * sizeof(EulerAngles) == 96);
+
+
+    struct EnttAppearance {
+        EnttAppearance& clear() {
+            general_apperaance_.set(0);
+            specific_appearance_varient_.set(0);
+            return *this;
+        }
+
+        sung::BEValue<uint16_t> general_apperaance_;
+        sung::BEValue<uint16_t> specific_appearance_varient_;
+    };
+    static_assert(8 * sizeof(EnttAppearance) == 32);
+
+
+    struct DeadReckoningParam {
+        DeadReckoningParam& clear() {
+            algorithm_ = 0;
+            other_params_.fill(0);
+            linear_acc_.set(0, 0, 0);
+            angular_vel_.set(0, 0, 0);
+            return *this;
+        }
+
+        uint8_t algorithm_;
+        std::array<uint8_t, 15> other_params_;
+        LinearVelVector linear_acc_;
+        LinearVelVector angular_vel_;
+    };
+    static_assert(8 * sizeof(DeadReckoningParam) == 320);
+
+
+    struct EnttMarking {
+        EnttMarking& clear() {
+            charset_ = 0;
+            str_.fill(0);
+            return *this;
+        }
+
+        uint8_t charset_;
+        std::array<uint8_t, 11> str_;
+    };
+    static_assert(8 * sizeof(EnttMarking) == 96);
 
 
     struct DataPdu {
@@ -263,7 +398,13 @@ namespace {
         LinearVelVector entt_linear_vel_;
         WorldCoord entt_loc_;
         EulerAngles entt_orient_;
+        EnttAppearance entt_appearance_;
+        DeadReckoningParam dead_reckoning_param_;
+        EnttMarking entt_marking_;
+        sung::BEValue<uint32_t> entt_capabilities_;
+        std::array<uint8_t, 128 / 8> padding_;
     };
+    static_assert(8 * sizeof(EnttPdu) == 1280);
 
 
     template <typename T>
@@ -321,15 +462,15 @@ namespace {
         }
 
         ClientRecord& notify_recv(const asio::ip::udp::endpoint& ep) {
-            auto it = data_.find(ep);
-            if (it == data_.end()) {
-                it = data_.emplace(ep, ClientRecord{}).first;
-                SPDLOG_INFO("Client added: {}", ::to_str(ep));
-            }
+            auto& client = this->get_or_create(ep);
+            client.last_recv_.check();
+            return client;
+        }
 
-            it->second.last_recv_.check();
-
-            return it->second;
+        ClientRecord& notify_send(const asio::ip::udp::endpoint& ep) {
+            auto& client = this->get_or_create(ep);
+            client.last_send_.check();
+            return client;
         }
 
         void print_all() const {
@@ -346,8 +487,96 @@ namespace {
             }
         }
 
+        auto begin() { return data_.begin(); }
+        auto end() { return data_.end(); }
+
     private:
+        ClientRecord& get_or_create(const asio::ip::udp::endpoint& ep) {
+            auto it = data_.find(ep);
+            if (it == data_.end()) {
+                it = data_.emplace(ep, ClientRecord{}).first;
+                SPDLOG_INFO("Client added: {}", ::to_str(ep));
+            }
+
+            return it->second;
+        }
+
         std::unordered_map<asio::ip::udp::endpoint, ClientRecord> data_;
+    };
+
+
+    class UdpRadioTower {
+
+    public:
+        UdpRadioTower(asio::io_context& io_context)
+            : io_context_(io_context)
+            , socket_(io_context)
+            , endpoint_(
+                  asio::ip::address_v4::from_string("127.255.255.255"), 3000
+              )
+            , tick_timer_(io_context, std::chrono::milliseconds(5000)) {
+            std::error_code error;
+            socket_.open(asio::ip::udp::v4(), error);
+
+            if (error) {
+                SPDLOG_ERROR("Failed to open socket: {}", error.message());
+                return;
+            }
+
+            socket_.set_option(asio::ip::udp::socket::reuse_address(true));
+            socket_.set_option(asio::socket_base::broadcast(true));
+
+            tick_timer_.async_wait(std::bind(&UdpRadioTower::tick, this));
+        }
+
+        ~UdpRadioTower() {
+            std::error_code error;
+            socket_.close(error);
+
+            if (error) {
+                SPDLOG_ERROR("Failed to close socket: {}", error.message());
+            }
+        }
+
+    private:
+        void tick() {
+            EnttPdu pdu;
+            pdu.header_.set_default()
+                .set_type(::PduType::entity_state)
+                .set_len(sizeof(EnttPdu));
+            pdu.entt_id_.set(1, 3003, 1001);
+            pdu.force_id_ = 3;
+            pdu.num_of_articulation_param_ = 0;
+            pdu.entt_type_.set(1, 1, 225, 1, 1, 1, 0);
+            pdu.alt_entt_type_.set(1, 1, 225, 1, 1, 1, 0);
+            pdu.entt_linear_vel_.set(2, 3, 4);
+            pdu.entt_loc_.set(-3049328.82, 4049133.27, 3859976.86);
+            pdu.entt_orient_.set(0, 0, 0);
+            pdu.entt_appearance_.clear();
+            pdu.dead_reckoning_param_.clear();
+            pdu.dead_reckoning_param_.algorithm_ = 1;
+            pdu.entt_marking_.clear();
+            pdu.entt_capabilities_.set(0);
+            pdu.padding_.fill(0);
+
+            socket_.send_to(asio::buffer(&pdu, sizeof(pdu)), endpoint_);
+            SPDLOG_INFO(
+                "Sent to {}: len={}, type={}",
+                ::to_str(endpoint_),
+                pdu.header_.length_.get(),
+                pdu.header_.pdu_type_str()
+            );
+
+            tick_timer_ = asio::steady_timer(
+                io_context_, std::chrono::milliseconds(5000)
+            );
+            tick_timer_.async_wait(std::bind(&UdpRadioTower::tick, this));
+        }
+
+        asio::io_context& io_context_;
+        asio::ip::udp::socket socket_;
+        asio::ip::udp::endpoint endpoint_;
+        asio::steady_timer tick_timer_;
     };
 
 
@@ -357,12 +586,18 @@ namespace {
         UdpServer(asio::io_context& io_context)
             : socket_(
                   io_context, asio::ip::udp::endpoint(asio::ip::udp::v4(), 3000)
-              ) {
+              )
+            , tick_timer_(io_context, std::chrono::milliseconds(1000 / 30)) {
+            tick_timer_.async_wait(std::bind(&UdpServer::tick, this));
             this->start_recv();
-            // this->start_send();
         }
 
     private:
+        void tick() {
+            tick_timer_.async_wait(std::bind(&UdpServer::tick, this));
+            return;
+        }
+
         void start_recv() {
             socket_.async_receive_from(
                 asio::buffer(recv_buffer_),
@@ -374,26 +609,6 @@ namespace {
                     asio::placeholders::bytes_transferred
                 )
             );
-        }
-
-        void start_send() {
-            /*SPDLOG_INFO(
-                "Sending to {}:{} ({})",
-                remote_endpoint_.address().to_string(),
-                remote_endpoint_.port(),
-                std::hash<std::thread::id>{}(std::this_thread::get_id())
-            );
-
-            socket_.async_send_to(
-                send_buffer_,
-                remote_endpoint_,
-                std::bind(
-                    &UdpServer::handle_send,
-                    this,
-                    asio::placeholders::error,
-                    asio::placeholders::bytes_transferred
-                )
-            );*/
         }
 
         void handle_recv(
@@ -455,11 +670,8 @@ namespace {
                 );
 
                 ss << fmt::format(
-                    "  entt_id={}:{}:{}, force_id={}, "
-                    "num_of_articulation_param={}\n",
-                    entt_pdu->entt_id_.sim_addr_.site_id_.get(),
-                    entt_pdu->entt_id_.sim_addr_.app_id_.get(),
-                    entt_pdu->entt_id_.entt_id_.get(),
+                    "  entt_id={}, force_id={}, num_of_articulation_param={}\n",
+                    entt_pdu->entt_id_.to_str(),
                     entt_pdu->force_id_,
                     entt_pdu->num_of_articulation_param_
                 );
@@ -518,17 +730,12 @@ namespace {
                 );
 
                 ss << fmt::format(
-                    "  originating_entt={}:{}:{}\n",
-                    data_pdu->originating_entt_.sim_addr_.site_id_.get(),
-                    data_pdu->originating_entt_.sim_addr_.app_id_.get(),
-                    data_pdu->originating_entt_.entt_id_.get()
+                    "  originating_entt={}\n",
+                    data_pdu->originating_entt_.to_str()
                 );
 
                 ss << fmt::format(
-                    "  receiving_entt={}:{}:{}\n",
-                    data_pdu->receiving_entt_.sim_addr_.site_id_.get(),
-                    data_pdu->receiving_entt_.sim_addr_.app_id_.get(),
-                    data_pdu->receiving_entt_.entt_id_.get()
+                    "  receiving_entt={}\n", data_pdu->receiving_entt_.to_str()
                 );
 
                 ss << fmt::format(
@@ -554,7 +761,7 @@ namespace {
                 }
             }
 
-            // SPDLOG_INFO(ss.str().substr(0, ss.str().size() - 1));
+            SPDLOG_INFO(ss.str().substr(0, ss.str().size() - 1));
             this->start_recv();
         }
 
@@ -574,12 +781,10 @@ namespace {
                     std::hash<std::thread::id>{}(std::this_thread::get_id())
                 );
             }
-
-            std::this_thread::sleep_for(std::chrono::seconds(1));
-            this->start_send();
         }
 
         asio::ip::udp::socket socket_;
+        asio::steady_timer tick_timer_;
         asio::ip::udp::endpoint remote_ep_tmp_;
         ClientManager clients_;
         std::array<char, 1024 * 8> recv_buffer_;
@@ -593,6 +798,8 @@ int main() {
     asio::io_context io_context;
     ::UdpServer server(io_context);
     std::thread th([&] { io_context.run(); });
+
+    ::UdpRadioTower radio_tower(io_context);
 
     while (true) {
         std::this_thread::sleep_for(std::chrono::seconds(1));
