@@ -10,22 +10,19 @@
 #include <asio.hpp>
 #include <glm/glm.hpp>
 #include <glm/gtc/quaternion.hpp>
-#include <sung/general/angle.hpp>
-#include <sung/general/bytes.hpp>
 #include <sung/general/time.hpp>
+
+#include "disordat/pdu_struct.hpp"
 
 
 namespace {
 
-    using Vec3 = glm::dvec3;
-    using Angle = sung::TAngle<double>;
-
     int SITE_ID = 1;
     int APP_ID = 3003;
 
-    const auto CENTER_TO_PRIME_MERIDIAN = Vec3{ 1, 0, 0 };
-    const auto CENTER_TO_ASIA = Vec3{ 0, 1, 0 };
-    const auto CENTER_TO_NORTH = Vec3{ 0, 0, 1 };
+    const glm::dvec3 CENTER_TO_PRIME_MERIDIAN{ 1, 0, 0 };
+    const glm::dvec3 CENTER_TO_ASIA{ 0, 1, 0 };
+    const glm::dvec3 CENTER_TO_NORTH{ 0, 0, 1 };
 
 
     class Entity {
@@ -33,9 +30,9 @@ namespace {
     public:
         virtual ~Entity() = default;
 
-        virtual const Vec3& pos() = 0;
-        virtual const Vec3& vel() = 0;
-        virtual const Vec3& acc() = 0;
+        virtual const glm::dvec3& pos() = 0;
+        virtual const glm::dvec3& vel() = 0;
+        virtual const glm::dvec3& acc() = 0;
 
         std::string name_;
         uint16_t dis_id_ = 0;
@@ -52,26 +49,26 @@ namespace {
         auto& acc() const { return acc_; }
 
         PositionIntegrator& set_pos(double x, double y, double z) {
-            pos_ = Vec3(x, y, z);
+            pos_ = glm::dvec3(x, y, z);
             return *this;
         }
 
-        PositionIntegrator& set_pos(const Vec3& pos) {
+        PositionIntegrator& set_pos(const glm::dvec3& pos) {
             pos_ = pos;
             return *this;
         }
 
-        PositionIntegrator& set_vel(const Vec3& vel) {
+        PositionIntegrator& set_vel(const glm::dvec3& vel) {
             vel_ = vel;
             return *this;
         }
 
         PositionIntegrator& reset_acc() {
-            acc_ = Vec3(0);
+            acc_ = glm::dvec3(0);
             return *this;
         }
 
-        PositionIntegrator& add_acc(const Vec3& acc) {
+        PositionIntegrator& add_acc(const glm::dvec3& acc) {
             acc_ += acc;
             return *this;
         }
@@ -95,9 +92,9 @@ namespace {
             pos_.set_pos(-3049328.82, 4049133.27, 3859976.86);
         }
 
-        const Vec3& pos() override { return pos_.pos(); }
-        const Vec3& vel() override { return pos_.vel(); }
-        const Vec3& acc() override { return pos_.acc(); }
+        const glm::dvec3& pos() override { return pos_.pos(); }
+        const glm::dvec3& vel() override { return pos_.vel(); }
+        const glm::dvec3& acc() override { return pos_.acc(); }
 
         void update(double dt) {
             const auto anti_gravity_n = glm::normalize(pos_.pos());
@@ -127,14 +124,16 @@ namespace {
             pos_.integrate(dt);
         }
 
-        Vec3 make_eular() const {
+        glm::dvec3 make_eular() const {
             const auto eular = glm::eulerAngles(quat_);
-            return Vec3(eular.z, eular.y, eular.x);
+            return glm::dvec3(eular.z, eular.y, eular.x);
         }
 
-        Vec3 entt_front() const { return quat_ * CENTER_TO_PRIME_MERIDIAN; }
-        Vec3 entt_up() const { return quat_ * (-CENTER_TO_NORTH); }
-        Vec3 entt_right() const { return quat_ * (CENTER_TO_ASIA); }
+        glm::dvec3 entt_front() const {
+            return quat_ * CENTER_TO_PRIME_MERIDIAN;
+        }
+        glm::dvec3 entt_up() const { return quat_ * (-CENTER_TO_NORTH); }
+        glm::dvec3 entt_right() const { return quat_ * (CENTER_TO_ASIA); }
 
     private:
         glm::dquat quat_;         // Quaternion
@@ -146,490 +145,6 @@ namespace {
 
 
 namespace {
-
-    enum class PduType {
-        other = 0,
-        entity_state = 1,
-        fire = 2,
-        detonation = 3,
-        collision = 4,
-        service_request = 5,
-        resupply_offer = 6,
-        resupply_received = 7,
-        resupply_cancel = 8,
-        repair_complete = 9,
-        repair_response = 10,
-        create_entity = 11,
-        remove_entity = 12,
-        start_resume = 13,
-        stop_freeze = 14,
-        acknowledge = 15,
-        action_request = 16,
-        action_response = 17,
-        data_query = 18,
-        set_data = 19,
-        data = 20,
-        event_report = 21,
-        comment = 22,
-        electronic_emission = 23,
-        designator = 24,
-        transmitter = 25,
-        signal = 26,
-        receiver = 27,
-        announce_object = 129,
-        delete_object = 130,
-        describe_application = 131,
-        describe_event = 132,
-        describe_object = 133,
-        request_event = 134,
-        request_object = 135,
-        time_space_position_indicator_fi = 140,
-        appearance_fi = 141,
-        articulated_parts_fi = 142,
-        fire_fi = 143,
-        detonation_fi = 144,
-        point_object_state = 150,
-        linear_object_state = 151,
-        areal_object_state = 152,
-        environment = 153,
-        transfer_control_request = 155,
-        transfer_control = 156,
-        transfer_control_acknowledge = 157,
-        intercom_control = 160,
-        intercom_signal = 161,
-        aggregate = 170,
-    };
-
-    const char* to_str(PduType pdu_type) {
-        switch (pdu_type) {
-            case PduType::other:
-                return "other";
-            case PduType::entity_state:
-                return "entity_state";
-            case PduType::fire:
-                return "fire";
-            case PduType::detonation:
-                return "detonation";
-            case PduType::collision:
-                return "collision";
-            case PduType::service_request:
-                return "service_request";
-            case PduType::resupply_offer:
-                return "resupply_offer";
-            case PduType::resupply_received:
-                return "resupply_received";
-            case PduType::resupply_cancel:
-                return "resupply_cancel";
-            case PduType::repair_complete:
-                return "repair_complete";
-            case PduType::repair_response:
-                return "repair_response";
-            case PduType::create_entity:
-                return "create_entity";
-            case PduType::remove_entity:
-                return "remove_entity";
-            case PduType::start_resume:
-                return "start_resume";
-            case PduType::stop_freeze:
-                return "stop_freeze";
-            case PduType::acknowledge:
-                return "acknowledge";
-            case PduType::action_request:
-                return "action_request";
-            case PduType::action_response:
-                return "action_response";
-            case PduType::data_query:
-                return "data_query";
-            case PduType::set_data:
-                return "set_data";
-            case PduType::data:
-                return "data";
-            case PduType::event_report:
-                return "event_report";
-            case PduType::comment:
-                return "comment";
-            case PduType::electronic_emission:
-                return "electronic_emission";
-            case PduType::designator:
-                return "designator";
-            case PduType::transmitter:
-                return "transmitter";
-            case PduType::signal:
-                return "signal";
-            case PduType::receiver:
-                return "receiver";
-            case PduType::announce_object:
-                return "announce_object";
-            case PduType::delete_object:
-                return "delete_object";
-            case PduType::describe_application:
-                return "describe_application";
-            case PduType::describe_event:
-                return "describe_event";
-            case PduType::describe_object:
-                return "describe_object";
-            case PduType::request_event:
-                return "request_event";
-            case PduType::request_object:
-                return "request_object";
-            case PduType::time_space_position_indicator_fi:
-                return "time_space_position_indicator_fi";
-            case PduType::appearance_fi:
-                return "appearance_fi";
-            case PduType::articulated_parts_fi:
-                return "articulated_parts_fi";
-            case PduType::fire_fi:
-                return "fire_fi";
-            case PduType::detonation_fi:
-                return "detonation_fi";
-            case PduType::point_object_state:
-                return "point_object_state";
-            case PduType::linear_object_state:
-                return "linear_object_state";
-            case PduType::areal_object_state:
-                return "areal_object_state";
-            case PduType::environment:
-                return "environment";
-            case PduType::transfer_control_request:
-                return "transfer_control_request";
-            case PduType::transfer_control:
-                return "transfer_control";
-            case PduType::transfer_control_acknowledge:
-                return "transfer_control_acknowledge";
-            case PduType::intercom_control:
-                return "intercom_control";
-            case PduType::intercom_signal:
-                return "intercom_signal";
-            case PduType::aggregate:
-                return "aggregate";
-        }
-        return "unknown";
-    }
-
-
-    class PduHeader {
-
-    public:
-        PduType pdu_type() const { return static_cast<PduType>(pdu_type_); }
-
-        const char* pdu_type_str() const { return ::to_str(this->pdu_type()); }
-
-        PduHeader& set_default() {
-            version_ = 7;
-            exercise_id_ = 1;
-            pdu_type_ = 0;
-            protocol_family_ = 5;
-            timestamp_.set(sung::get_time_unix());
-            length_ = 0;
-            padding_ = 0;
-            return *this;
-        }
-
-        PduHeader& set_type(PduType pdu_type) {
-            pdu_type_ = static_cast<uint8_t>(pdu_type);
-            return *this;
-        }
-
-        PduHeader& set_len(uint16_t len) {
-            length_ = len;
-            return *this;
-        }
-
-        uint8_t version_;
-        uint8_t exercise_id_;
-        uint8_t pdu_type_;
-        uint8_t protocol_family_;
-        sung::BEValue<uint32_t> timestamp_;
-        sung::BEValue<uint16_t> length_;
-        sung::BEValue<uint16_t> padding_;
-    };
-    static_assert(8 * sizeof(PduHeader) == 96);
-
-
-    struct SimAdress {
-        sung::BEValue<uint16_t> site_id_;
-        sung::BEValue<uint16_t> app_id_;
-    };
-
-
-    class EnttId {
-
-    public:
-        uint16_t site_id() const { return sim_addr_.site_id_.get(); }
-        uint16_t app_id() const { return sim_addr_.app_id_.get(); }
-        uint16_t entt_id() const { return entt_id_.get(); }
-
-        std::string to_str() const {
-            return fmt::format(
-                "{}:{}:{}", this->site_id(), this->app_id(), this->entt_id()
-            );
-        }
-
-        EnttId& set(uint16_t site_id, uint16_t app_id, uint16_t entt_id) {
-            sim_addr_.site_id_.set(site_id);
-            sim_addr_.app_id_.set(app_id);
-            entt_id_.set(entt_id);
-            return *this;
-        }
-
-    private:
-        SimAdress sim_addr_;
-        sung::BEValue<uint16_t> entt_id_;
-    };
-    static_assert(8 * sizeof(EnttId) == 48);
-
-
-    struct FixedDatum {
-        sung::BEValue<uint32_t> datum_id_;
-        sung::BEValue<uint32_t> datum_value_;
-    };
-
-
-    struct VariableDatum {
-        sung::BEValue<uint32_t> datum_id_;
-        sung::BEValue<uint32_t> datum_length_;
-        uint8_t* datum_;
-    };
-
-
-    class EnttType {
-
-    public:
-        EnttType& set(
-            uint8_t kind,
-            uint8_t domain,
-            uint16_t country,
-            uint8_t category,
-            uint8_t subcategory,
-            uint8_t specific,
-            uint8_t extra
-        ) {
-            kind_ = kind;
-            domain_ = domain;
-            country_.set(country);
-            category_ = category;
-            subcategory_ = subcategory;
-            specific_ = specific;
-            extra_ = extra;
-            return *this;
-        }
-
-        uint8_t kind_;
-        uint8_t domain_;
-        sung::BEValue<uint16_t> country_;
-        uint8_t category_;
-        uint8_t subcategory_;
-        uint8_t specific_;
-        uint8_t extra_;
-    };
-    static_assert(8 * sizeof(EnttType) == 64);
-
-
-    struct LinearVelVector {
-        LinearVelVector& set(float x, float y, float z) {
-            x_.set(x);
-            y_.set(y);
-            z_.set(z);
-            return *this;
-        }
-
-        LinearVelVector& set(const Vec3& v) {
-            x_.set(v.x);
-            y_.set(v.y);
-            z_.set(v.z);
-            return *this;
-        }
-
-        sung::BEValue<float> x_;
-        sung::BEValue<float> y_;
-        sung::BEValue<float> z_;
-    };
-    static_assert(8 * sizeof(LinearVelVector) == 96);
-
-
-    struct WorldCoord {
-        WorldCoord& set(double x, double y, double z) {
-            x_.set(x);
-            y_.set(y);
-            z_.set(z);
-            return *this;
-        }
-
-        WorldCoord& set(const Vec3& v) {
-            x_.set(v.x);
-            y_.set(v.y);
-            z_.set(v.z);
-            return *this;
-        }
-
-        sung::BEValue<double> x_;
-        sung::BEValue<double> y_;
-        sung::BEValue<double> z_;
-    };
-    static_assert(8 * sizeof(WorldCoord) == 192);
-
-
-    /**
-     * On VR-Forces, the rest orientation is such that top face of an entity is
-     * towards along the north pole axis, front direction is towards from center
-     * to the Greenwich observatory.
-     */
-    struct EulerAngles {
-        EulerAngles& clear() {
-            psi_.set(0);
-            theta_.set(0);
-            phi_.set(0);
-            return *this;
-        }
-
-        EulerAngles& set(
-            const Angle& psi, const Angle& theta, const Angle& phi
-        ) {
-            psi_.set(psi.rad());
-            theta_.set(theta.rad());
-            phi_.set(phi.rad());
-            return *this;
-        }
-
-        EulerAngles& set(const Vec3& radians) {
-            psi_.set(radians.x);
-            theta_.set(radians.y);
-            phi_.set(radians.z);
-            return *this;
-        }
-
-        // Psi is the heading angle.
-        EulerAngles& set_head(const Angle& psi) {
-            psi_.set(psi.rad());
-            return *this;
-        }
-
-        // Theta is the elevation angle.
-        EulerAngles& set_elev(const Angle& theta) {
-            theta_.set(theta.rad());
-            return *this;
-        }
-
-        // Phi is the bank angle.
-        EulerAngles& set_roll(const Angle& phi) {
-            phi_.set(phi.rad());
-            return *this;
-        }
-
-        sung::BEValue<float> psi_;
-        sung::BEValue<float> theta_;
-        sung::BEValue<float> phi_;
-    };
-    static_assert(8 * sizeof(EulerAngles) == 96);
-
-
-    struct EnttAppearance {
-        EnttAppearance& clear() {
-            general_apperaance_.set(0);
-            specific_appearance_varient_.set(0);
-            return *this;
-        }
-
-        sung::BEValue<uint16_t> general_apperaance_;
-        sung::BEValue<uint16_t> specific_appearance_varient_;
-    };
-    static_assert(8 * sizeof(EnttAppearance) == 32);
-
-
-    class DeadReckoningParam {
-
-    public:
-        DeadReckoningParam& set_default() {
-            algorithm_ = 1;
-            other_params_.fill(0);
-            linear_acc_.set(0, 0, 0);
-            angular_vel_.set(0, 0, 0);
-            return *this;
-        }
-
-        DeadReckoningParam& set_algorithm(uint8_t x) {
-            algorithm_ = x;
-            return *this;
-        }
-
-        DeadReckoningParam& set_linear_acc(const Vec3& acc) {
-            linear_acc_.set(acc);
-            return *this;
-        }
-
-        DeadReckoningParam& set_angular_vel(const Vec3& vel) {
-            angular_vel_.set(vel);
-            return *this;
-        }
-
-    private:
-        uint8_t algorithm_;
-        std::array<uint8_t, 15> other_params_;
-        LinearVelVector linear_acc_;
-        LinearVelVector angular_vel_;
-    };
-    static_assert(8 * sizeof(DeadReckoningParam) == 320);
-
-
-    struct EnttMarking {
-        EnttMarking& clear() {
-            charset_ = 0;
-            str_.fill(0);
-            return *this;
-        }
-
-        EnttMarking& set_ascii(const std::string& str) {
-            charset_ = 1;
-            str_.fill(0);
-
-            const auto len = std::min(str.size(), str_.size());
-            for (size_t i = 0; i < len; ++i) {
-                str_[i] = str[i];
-            }
-
-            if (len < str.size()) {
-                str_[8] = '.';
-                str_[9] = '.';
-                str_[10] = '.';
-            }
-
-            return *this;
-        }
-
-        uint8_t charset_;
-        std::array<uint8_t, 11> str_;
-    };
-    static_assert(8 * sizeof(EnttMarking) == 96);
-
-
-    struct DataPdu {
-        PduHeader header_;
-        EnttId originating_entt_;
-        EnttId receiving_entt_;
-        sung::BEValue<uint32_t> request_id_;
-        sung::BEValue<uint32_t> padding_;
-        sung::BEValue<uint32_t> num_of_fixed_datum_;
-        sung::BEValue<uint32_t> num_of_variable_datum_;
-    };
-
-
-    struct EnttPdu {
-        PduHeader header_;
-        EnttId entt_id_;
-        uint8_t force_id_;
-        uint8_t num_of_articulation_param_;
-        EnttType entt_type_;
-        EnttType alt_entt_type_;
-        LinearVelVector entt_linear_vel_;
-        WorldCoord entt_loc_;
-        EulerAngles entt_orient_;
-        EnttAppearance entt_appearance_;
-        DeadReckoningParam dead_reckoning_param_;
-        EnttMarking entt_marking_;
-        sung::BEValue<uint32_t> entt_capabilities_;
-        std::array<uint8_t, 128 / 8> padding_;
-    };
-    static_assert(8 * sizeof(EnttPdu) == 1280);
 
 
     template <typename T>
@@ -779,10 +294,10 @@ namespace {
             const auto dt = timer_.check_get_elapsed();
             fixed_wing_.update(dt);
 
-            EnttPdu pdu;
+            disordat::EnttPdu pdu;
             pdu.header_.set_default()
-                .set_type(::PduType::entity_state)
-                .set_len(sizeof(EnttPdu));
+                .set_type(disordat::PduType::entity_state)
+                .set_len(sizeof(disordat::EnttPdu));
             pdu.entt_id_.set(::SITE_ID, ::APP_ID, fixed_wing_.dis_id_);
             pdu.force_id_ = 3;
             pdu.num_of_articulation_param_ = 0;
@@ -871,14 +386,14 @@ namespace {
             ss << fmt::format("\nBytes ({})\n", bytes_transferred);
             //::print_bytes(recv_buffer_.data(), bytes_transferred, 16, 2);
 
-            if (bytes_transferred < sizeof(::PduHeader)) {
+            if (bytes_transferred < sizeof(disordat::PduHeader)) {
                 ss << fmt::format(
                     "Received bytes is less than PDU header size\n"
                 );
                 return this->start_recv();
             }
 
-            const auto pdu_header = reinterpret_cast<::PduHeader*>(
+            const auto pdu_header = reinterpret_cast<disordat::PduHeader*>(
                 recv_buffer_.data()
             );
             ss << fmt::format(
@@ -907,7 +422,7 @@ namespace {
 
                 ss << fmt::format("Entity State PDU\n");
 
-                const auto entt_pdu = reinterpret_cast<::EnttPdu*>(
+                const auto entt_pdu = reinterpret_cast<disordat::EnttPdu*>(
                     recv_buffer_.data()
                 );
 
@@ -973,7 +488,7 @@ namespace {
             } else if (pdu_header->pdu_type_ == 20) {
                 ss << fmt::format("Data PDU\n");
 
-                const auto data_pdu = reinterpret_cast<::DataPdu*>(
+                const auto data_pdu = reinterpret_cast<disordat::DataPdu*>(
                     recv_buffer_.data()
                 );
 
@@ -996,8 +511,8 @@ namespace {
                 );
 
                 const auto fixed_data_num = data_pdu->num_of_fixed_datum_.get();
-                const auto fixed_data = reinterpret_cast<::FixedDatum*>(
-                    recv_buffer_.data() + sizeof(::DataPdu)
+                const auto fixed_data = reinterpret_cast<disordat::FixedDatum*>(
+                    recv_buffer_.data() + sizeof(disordat::DataPdu)
                 );
                 ss << fmt::format("Fixed data ({})\n", fixed_data_num);
                 for (size_t i = 0; i < fixed_data_num; ++i) {
