@@ -19,6 +19,9 @@ namespace {
     using Vec3 = glm::dvec3;
     using Angle = sung::TAngle<double>;
 
+    int SITE_ID = 1;
+    int APP_ID = 3003;
+
     const auto CENTER_TO_PRIME_MERIDIAN = Vec3{ 1, 0, 0 };
     const auto CENTER_TO_ASIA = Vec3{ 0, 1, 0 };
     const auto CENTER_TO_NORTH = Vec3{ 0, 0, 1 };
@@ -761,7 +764,7 @@ namespace {
             pdu.header_.set_default()
                 .set_type(::PduType::entity_state)
                 .set_len(sizeof(EnttPdu));
-            pdu.entt_id_.set(1, 3003, fixed_wing_.dis_id_);
+            pdu.entt_id_.set(::SITE_ID, ::APP_ID, fixed_wing_.dis_id_);
             pdu.force_id_ = 3;
             pdu.num_of_articulation_param_ = 0;
             pdu.entt_type_.set(1, 2, 45, 1, 7, 0, 0);
