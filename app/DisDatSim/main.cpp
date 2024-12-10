@@ -24,7 +24,15 @@ namespace {
     const auto CENTER_TO_NORTH = Vec3{ 0, 0, 1 };
 
 
-    class SimpleFixedWing {
+    class Entity {
+
+    public:
+        std::string name_;
+        uint16_t dis_id_ = 0;
+    };
+
+
+    class SimpleFixedWing : public Entity {
 
     public:
         SimpleFixedWing()
@@ -480,6 +488,24 @@ namespace {
             return *this;
         }
 
+        EnttMarking& set_ascii(const std::string& str) {
+            charset_ = 1;
+            str_.fill(0);
+
+            const auto len = std::min(str.size(), str_.size());
+            for (size_t i = 0; i < len; ++i) {
+                str_[i] = str[i];
+            }
+
+            if (len < str.size()) {
+                str_[8] = '.';
+                str_[9] = '.';
+                str_[10] = '.';
+            }
+
+            return *this;
+        }
+
         uint8_t charset_;
         std::array<uint8_t, 11> str_;
     };
@@ -635,6 +661,9 @@ namespace {
             socket_.set_option(asio::ip::udp::socket::reuse_address(true));
             socket_.set_option(asio::socket_base::broadcast(true));
 
+            fixed_wing_.name_ = "Jay 20 fixed wing";
+            fixed_wing_.dis_id_ = 1;
+
             timer_.check();
             this->start_tick();
         }
@@ -664,7 +693,7 @@ namespace {
             pdu.header_.set_default()
                 .set_type(::PduType::entity_state)
                 .set_len(sizeof(EnttPdu));
-            pdu.entt_id_.set(1, 3003, 1001);
+            pdu.entt_id_.set(1, 3003, fixed_wing_.dis_id_);
             pdu.force_id_ = 3;
             pdu.num_of_articulation_param_ = 0;
             pdu.entt_type_.set(1, 2, 45, 1, 7, 0, 0);
@@ -674,7 +703,7 @@ namespace {
             pdu.entt_orient_.set(fixed_wing_.make_eular());
             pdu.entt_appearance_.clear();
             pdu.dead_reckoning_param_.set_default();
-            pdu.entt_marking_.clear();
+            pdu.entt_marking_.set_ascii(fixed_wing_.name_);
             pdu.entt_capabilities_.set(0);
             pdu.padding_.fill(0);
 
