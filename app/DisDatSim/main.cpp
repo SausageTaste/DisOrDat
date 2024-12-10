@@ -245,12 +245,12 @@ namespace {
             pdu.padding_.fill(0);
 
             socket_.send_to(asio::buffer(&pdu, sizeof(pdu)), endpoint_);
-            SPDLOG_INFO(
-                "Sent to {}: len={}, type={}",
-                ::to_str(endpoint_),
-                pdu.header_.length_.get(),
-                pdu.header_.pdu_type_str()
-            );
+            // SPDLOG_INFO(
+            //     "Sent to {}: len={}, type={}",
+            //     ::to_str(endpoint_),
+            //     pdu.header_.length_.get(),
+            //     pdu.header_.pdu_type_str()
+            // );
 
             this->start_tick();
         }
@@ -336,7 +336,7 @@ namespace {
                 ss << data_pdu->make_readable();
             }
 
-            SPDLOG_INFO(ss.str().substr(0, ss.str().size() - 1));
+            // SPDLOG_INFO(ss.str().substr(0, ss.str().size() - 1));
             this->start_recv();
         }
 
