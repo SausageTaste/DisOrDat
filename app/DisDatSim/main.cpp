@@ -27,19 +27,76 @@ namespace {
     class Entity {
 
     public:
+        virtual ~Entity() = default;
+
+        virtual const Vec3& pos() = 0;
+        virtual const Vec3& vel() = 0;
+        virtual const Vec3& acc() = 0;
+
         std::string name_;
         uint16_t dis_id_ = 0;
+    };
+
+
+    class PositionIntegrator {
+
+    public:
+        PositionIntegrator() : pos_(0), vel_(0), acc_(0) {}
+
+        auto& pos() const { return pos_; }
+        auto& vel() const { return vel_; }
+        auto& acc() const { return acc_; }
+
+        PositionIntegrator& set_pos(double x, double y, double z) {
+            pos_ = Vec3(x, y, z);
+            return *this;
+        }
+
+        PositionIntegrator& set_pos(const Vec3& pos) {
+            pos_ = pos;
+            return *this;
+        }
+
+        PositionIntegrator& set_vel(const Vec3& vel) {
+            vel_ = vel;
+            return *this;
+        }
+
+        PositionIntegrator& reset_acc() {
+            acc_ = Vec3(0);
+            return *this;
+        }
+
+        PositionIntegrator& add_acc(const Vec3& acc) {
+            acc_ += acc;
+            return *this;
+        }
+
+        void integrate(double dt) {
+            vel_ += acc_ * dt;
+            pos_ += vel_ * dt;
+        }
+
+    private:
+        glm::dvec3 pos_;
+        glm::dvec3 vel_;
+        glm::dvec3 acc_;
     };
 
 
     class SimpleFixedWing : public Entity {
 
     public:
-        SimpleFixedWing()
-            : quat_(1, 0, 0, 0), pos_(-3049328.82, 4049133.27, 3859976.86) {}
+        SimpleFixedWing() : quat_(1, 0, 0, 0) {
+            pos_.set_pos(-3049328.82, 4049133.27, 3859976.86);
+        }
+
+        const Vec3& pos() override { return pos_.pos(); }
+        const Vec3& vel() override { return pos_.vel(); }
+        const Vec3& acc() override { return pos_.acc(); }
 
         void update(double dt) {
-            const auto anti_gravity_n = glm::normalize(pos_);
+            const auto anti_gravity_n = glm::normalize(pos_.pos());
 
             // Adjust roll
             {
@@ -55,11 +112,15 @@ namespace {
 
             // Head forward
             {
+                const double dst_speed = 1000000.0;
                 const auto align = glm::dot(anti_gravity_n, this->entt_up());
-                if (align > 0.999)
-                    speed_ = 1000000;
-                pos_ += this->entt_front() * speed_ * dt;
+                pos_.reset_acc();
+                if (align > 0.999) {
+                    pos_.add_acc(this->entt_front() * 1000.0);
+                }
             }
+
+            pos_.integrate(dt);
         }
 
         Vec3 make_eular() const {
@@ -71,10 +132,10 @@ namespace {
         Vec3 entt_up() const { return quat_ * (-CENTER_TO_NORTH); }
         Vec3 entt_right() const { return quat_ * (CENTER_TO_ASIA); }
 
-        glm::dquat quat_;   // Quaternion
-        Vec3 pos_;          // Geocentric position
-        double speed_ = 0;  // Speed in m/s
-        bool to_north = true;
+    private:
+        glm::dquat quat_;         // Quaternion
+        PositionIntegrator pos_;  // Geocentric position
+        double speed_ = 0;        // Speed in m/s
     };
 
 }  // namespace
@@ -365,6 +426,13 @@ namespace {
             x_.set(x);
             y_.set(y);
             z_.set(z);
+            return *this;
+        }
+
+        LinearVelVector& set(const Vec3& v) {
+            x_.set(v.x);
+            y_.set(v.y);
+            z_.set(v.z);
             return *this;
         }
 
@@ -698,11 +766,13 @@ namespace {
             pdu.num_of_articulation_param_ = 0;
             pdu.entt_type_.set(1, 2, 45, 1, 7, 0, 0);
             pdu.alt_entt_type_.set(1, 1, 225, 1, 1, 1, 0);
-            pdu.entt_linear_vel_.set(0, 0, 0);
-            pdu.entt_loc_.set(fixed_wing_.pos_);
+            pdu.entt_linear_vel_.set(fixed_wing_.vel());
+            pdu.entt_loc_.set(fixed_wing_.pos());
             pdu.entt_orient_.set(fixed_wing_.make_eular());
             pdu.entt_appearance_.clear();
             pdu.dead_reckoning_param_.set_default();
+            pdu.dead_reckoning_param_.algorithm_ = 4;
+            pdu.dead_reckoning_param_.linear_acc_.set(fixed_wing_.acc());
             pdu.entt_marking_.set_ascii(fixed_wing_.name_);
             pdu.entt_capabilities_.set(0);
             pdu.padding_.fill(0);
