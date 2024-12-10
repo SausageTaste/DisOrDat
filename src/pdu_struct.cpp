@@ -1,5 +1,7 @@
 #include "disordat/pdu_struct.hpp"
 
+#include <sstream>
+
 #include <spdlog/spdlog.h>
 #include <sung/general/time.hpp>
 
@@ -227,6 +229,123 @@ namespace disordat {
         }
 
         return *this;
+    }
+
+}  // namespace disordat
+
+
+// DataPdu
+namespace disordat {
+
+    std::string DataPdu::make_readable() const {
+        std::stringstream ss;
+        ss << fmt::format("Data PDU\n");
+
+        ss << fmt::format(
+            "  originating_entt={}\n", originating_entt_.to_str()
+        );
+
+        ss << fmt::format("  receiving_entt={}\n", receiving_entt_.to_str());
+
+        ss << fmt::format(
+            "  request_id={}, padding={}, num_of_fixed_datum={}, "
+            "num_of_variable_datum={}\n",
+            request_id_.get(),
+            padding_.get(),
+            num_of_fixed_datum_.get(),
+            num_of_variable_datum_.get()
+        );
+
+        const auto fixed_data_num = num_of_fixed_datum_.get();
+        const auto fixed_data = reinterpret_cast<const disordat::FixedDatum*>(
+            reinterpret_cast<const uint8_t*>(this) + sizeof(disordat::DataPdu)
+        );
+        ss << fmt::format("Fixed data ({})\n", fixed_data_num);
+        for (size_t i = 0; i < fixed_data_num; ++i) {
+            ss << fmt::format(
+                "  id={}, value={}\n",
+                fixed_data[i].datum_id_.get(),
+                fixed_data[i].datum_value_.get()
+            );
+        }
+
+        return ss.str();
+    }
+
+}  // namespace disordat
+
+
+// EnttPdu
+namespace disordat {
+
+    std::string EnttPdu::make_readable() const {
+        std::stringstream ss;
+        ss << fmt::format("Entity State PDU\n");
+
+        ss << fmt::format(
+            "PDU Header: version={}, exercise_id={}, pdu_type={}, "
+            "protocol_family={}, timestamp={}, length={}\n",
+            header_.version_,
+            header_.exercise_id_,
+            header_.pdu_type_str(),
+            header_.protocol_family_,
+            header_.timestamp_.get(),
+            header_.length_.get()
+        );
+
+        ss << fmt::format(
+            "  entt_id={}, force_id={}, num_of_articulation_param={}\n",
+            entt_id_.to_str(),
+            force_id_,
+            num_of_articulation_param_
+        );
+
+        ss << fmt::format(
+            "  kind={}, domain={}, country={}, category={}, subcategory={}, "
+            "specific={}, extra={}\n",
+            entt_type_.kind_,
+            entt_type_.domain_,
+            entt_type_.country_.get(),
+            entt_type_.category_,
+            entt_type_.subcategory_,
+            entt_type_.specific_,
+            entt_type_.extra_
+        );
+
+        ss << fmt::format(
+            "  alt_kind={}, alt_domain={}, alt_country={}, alt_category={}, "
+            "alt_subcategory={}, alt_specific={}, alt_extra={}\n",
+            alt_entt_type_.kind_,
+            alt_entt_type_.domain_,
+            alt_entt_type_.country_.get(),
+            alt_entt_type_.category_,
+            alt_entt_type_.subcategory_,
+            alt_entt_type_.specific_,
+            alt_entt_type_.extra_
+        );
+
+        ss << fmt::format(
+            "  linear_vel={{x={:.2f}, y={:.2f}, z={:.2f}}}\n",
+            entt_linear_vel_.x_.get(),
+            entt_linear_vel_.y_.get(),
+            entt_linear_vel_.z_.get()
+        );
+
+        ss << fmt::format(
+            "  loc={{x={:.2f}, y={:.2f}, z={:.2f}}}\n",
+            entt_loc_.x_.get(),
+            entt_loc_.y_.get(),
+            entt_loc_.z_.get()
+        );
+
+        ss << fmt::format(
+            "  orient={{psi={:.2f}, theta={:.2f}, phi={:.2f}}}\n",
+            entt_orient_.psi_.get(),
+            entt_orient_.theta_.get(),
+            entt_orient_.phi_.get()
+        );
+
+        return ss.str();
     }
 
 }  // namespace disordat

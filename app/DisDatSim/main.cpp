@@ -294,33 +294,16 @@ namespace {
 
             if (error) {
                 std::cerr << "Recv error: " << error.message() << std::endl;
-                return;
+                return this->start_recv();
             }
 
-            std::stringstream ss;
-
-            ss << fmt::format("\nBytes ({})\n", bytes_transferred);
-            //::print_bytes(recv_buffer_.data(), bytes_transferred, 16, 2);
-
             if (bytes_transferred < sizeof(disordat::PduHeader)) {
-                ss << fmt::format(
-                    "Received bytes is less than PDU header size\n"
-                );
+                SPDLOG_WARN("Received bytes is less than PDU header size");
                 return this->start_recv();
             }
 
             const auto pdu_header = reinterpret_cast<disordat::PduHeader*>(
                 recv_buffer_.data()
-            );
-            ss << fmt::format(
-                "PDU Header: version={}, exercise_id={}, pdu_type={}, "
-                "protocol_family={}, timestamp={}, length={}\n",
-                pdu_header->version_,
-                pdu_header->exercise_id_,
-                pdu_header->pdu_type_str(),
-                pdu_header->protocol_family_,
-                pdu_header->timestamp_.get(),
-                pdu_header->length_.get()
             );
 
             SPDLOG_INFO(
@@ -330,9 +313,11 @@ namespace {
                 pdu_header->pdu_type_str()
             );
 
-            if (pdu_header->pdu_type_ == 1) {
-                ss << fmt::format("Entity State PDU\n");
+            std::stringstream ss;
+            ss << fmt::format("\nBytes ({})\n", bytes_transferred);
+            //::print_bytes(recv_buffer_.data(), bytes_transferred, 16, 2);
 
+            if (pdu_header->pdu_type_ == 1) {
                 const auto entt_pdu = reinterpret_cast<disordat::EnttPdu*>(
                     recv_buffer_.data()
                 );
@@ -343,96 +328,12 @@ namespace {
                     return this->start_recv();
                 }
 
-                ss << fmt::format(
-                    "  entt_id={}, force_id={}, num_of_articulation_param={}\n",
-                    entt_pdu->entt_id_.to_str(),
-                    entt_pdu->force_id_,
-                    entt_pdu->num_of_articulation_param_
-                );
-
-                ss << fmt::format(
-                    "  kind={}, domain={}, country={}, category={}, "
-                    "subcategory={}, specific={}, extra={}\n",
-                    entt_pdu->entt_type_.kind_,
-                    entt_pdu->entt_type_.domain_,
-                    entt_pdu->entt_type_.country_.get(),
-                    entt_pdu->entt_type_.category_,
-                    entt_pdu->entt_type_.subcategory_,
-                    entt_pdu->entt_type_.specific_,
-                    entt_pdu->entt_type_.extra_
-                );
-
-                ss << fmt::format(
-                    "  alt_kind={}, alt_domain={}, alt_country={}, "
-                    "alt_category={}, alt_subcategory={}, alt_specific={}, "
-                    "alt_extra={}\n",
-                    entt_pdu->alt_entt_type_.kind_,
-                    entt_pdu->alt_entt_type_.domain_,
-                    entt_pdu->alt_entt_type_.country_.get(),
-                    entt_pdu->alt_entt_type_.category_,
-                    entt_pdu->alt_entt_type_.subcategory_,
-                    entt_pdu->alt_entt_type_.specific_,
-                    entt_pdu->alt_entt_type_.extra_
-                );
-
-                ss << fmt::format(
-                    "  linear_vel={{x={:.2f}, y={:.2f}, z={:.2f}}}\n",
-                    entt_pdu->entt_linear_vel_.x_.get(),
-                    entt_pdu->entt_linear_vel_.y_.get(),
-                    entt_pdu->entt_linear_vel_.z_.get()
-                );
-
-                ss << fmt::format(
-                    "  loc={{x={:.2f}, y={:.2f}, z={:.2f}}}\n",
-                    entt_pdu->entt_loc_.x_.get(),
-                    entt_pdu->entt_loc_.y_.get(),
-                    entt_pdu->entt_loc_.z_.get()
-                );
-
-                ss << fmt::format(
-                    "  orient={{psi={:.2f}, theta={:.2f}, "
-                    "phi={:.2f}}}\n",
-                    entt_pdu->entt_orient_.psi_.get(),
-                    entt_pdu->entt_orient_.theta_.get(),
-                    entt_pdu->entt_orient_.phi_.get()
-                );
+                ss << entt_pdu->make_readable();
             } else if (pdu_header->pdu_type_ == 20) {
-                ss << fmt::format("Data PDU\n");
-
                 const auto data_pdu = reinterpret_cast<disordat::DataPdu*>(
                     recv_buffer_.data()
                 );
-
-                ss << fmt::format(
-                    "  originating_entt={}\n",
-                    data_pdu->originating_entt_.to_str()
-                );
-
-                ss << fmt::format(
-                    "  receiving_entt={}\n", data_pdu->receiving_entt_.to_str()
-                );
-
-                ss << fmt::format(
-                    "  request_id={}, padding={}, num_of_fixed_datum={}, "
-                    "num_of_variable_datum={}\n",
-                    data_pdu->request_id_.get(),
-                    data_pdu->padding_.get(),
-                    data_pdu->num_of_fixed_datum_.get(),
-                    data_pdu->num_of_variable_datum_.get()
-                );
-
-                const auto fixed_data_num = data_pdu->num_of_fixed_datum_.get();
-                const auto fixed_data = reinterpret_cast<disordat::FixedDatum*>(
-                    recv_buffer_.data() + sizeof(disordat::DataPdu)
-                );
-                ss << fmt::format("Fixed data ({})\n", fixed_data_num);
-                for (size_t i = 0; i < fixed_data_num; ++i) {
-                    ss << fmt::format(
-                        "  id={}, value={}\n",
-                        fixed_data[i].datum_id_.get(),
-                        fixed_data[i].datum_value_.get()
-                    );
-                }
+                ss << data_pdu->make_readable();
             }
 
             SPDLOG_INFO(ss.str().substr(0, ss.str().size() - 1));

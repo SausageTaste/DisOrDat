@@ -297,6 +297,8 @@ namespace disordat {
 
 
     struct DataPdu {
+        std::string make_readable() const;
+
         PduHeader header_;
         EnttId originating_entt_;
         EnttId receiving_entt_;
@@ -308,6 +310,8 @@ namespace disordat {
 
 
     struct EnttPdu {
+        std::string make_readable() const;
+
         PduHeader header_;
         EnttId entt_id_;
         uint8_t force_id_;
