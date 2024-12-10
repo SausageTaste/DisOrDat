@@ -35,10 +35,7 @@ namespace {
 
             // Adjust roll
             {
-                const auto dst_entt_left_n = glm::normalize(
-                    glm::cross(anti_gravity_n, this->entt_front())
-                );
-                const auto align = glm::dot(dst_entt_left_n, this->entt_up());
+                const auto align = glm::dot(anti_gravity_n, this->entt_right());
                 quat_ = glm::rotate(quat_, align * dt, this->entt_front());
             }
 
