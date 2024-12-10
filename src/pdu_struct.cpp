@@ -114,6 +114,10 @@ namespace disordat {
         return "unknown";
     }
 
+    std::string to_str(const Vec3& v) {
+        return fmt::format("({:.2f}, {:.2f}, {:.2f})", v.x, v.y, v.z);
+    }
+
 }  // namespace disordat
 
 

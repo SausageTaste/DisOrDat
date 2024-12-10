@@ -1,5 +1,6 @@
 #include <chrono>
 #include <iostream>
+#include <mutex>
 #include <set>
 #include <thread>
 #include <unordered_map>
@@ -23,6 +24,41 @@ namespace {
     const glm::dvec3 CENTER_TO_PRIME_MERIDIAN{ 1, 0, 0 };
     const glm::dvec3 CENTER_TO_ASIA{ 0, 1, 0 };
     const glm::dvec3 CENTER_TO_NORTH{ 0, 0, 1 };
+
+
+    class RemoteEntities {
+
+    public:
+        void notify(const disordat::EnttPdu& pdu) {
+            std::lock_guard<std::mutex> lock(mutsuki_);
+
+            const auto key = pdu.entt_id_.to_str();
+            auto it = entt_.find(key);
+            if (it == entt_.end()) {
+                it = entt_.emplace(key, Entity{}).first;
+            }
+            auto& entt = it->second;
+            entt.pos_ = pdu.entt_loc_.get();
+        }
+
+        sung::Optional<glm::dvec3> select_target_pos() {
+            std::lock_guard<std::mutex> lock(mutsuki_);
+
+            if (entt_.empty())
+                return sung::nullopt;
+
+            const auto it = entt_.begin();
+            return it->second.pos_;
+        }
+
+    private:
+        struct Entity {
+            glm::dvec3 pos_;
+        };
+
+        std::unordered_map<std::string, Entity> entt_;
+        std::mutex mutsuki_;
+    } remote_entt_;
 
 
     class Entity {
@@ -90,13 +126,54 @@ namespace {
     public:
         SimpleFixedWing() : quat_(1, 0, 0, 0) {
             pos_.set_pos(-3049328.82, 4049133.27, 3859976.86);
+            this->rot_roll(glm::radians(45.0));
         }
 
         const glm::dvec3& pos() override { return pos_.pos(); }
         const glm::dvec3& vel() override { return pos_.vel(); }
         const glm::dvec3& acc() override { return pos_.acc(); }
 
+        glm::dvec3 make_eular() const {
+            const auto eular = glm::eulerAngles(quat_);
+            return glm::dvec3(eular.z, eular.y, eular.x);
+        }
+
+        glm::dvec3 entt_front() const {
+            return glm::mat4_cast(quat_) *
+                   glm::dvec4(CENTER_TO_PRIME_MERIDIAN, 0);
+        }
+        glm::dvec3 entt_up() const {
+            return glm::mat4_cast(quat_) * glm::dvec4(-CENTER_TO_NORTH, 0);
+        }
+        glm::dvec3 entt_right() const {
+            return glm::normalize(
+                glm::mat4_cast(quat_) * glm::dvec4(CENTER_TO_ASIA, 0)
+            );
+        }
+
         void update(double dt) {
+            pos_.reset_acc();
+            pos_.add_acc(this->entt_front() * 100.0);
+            pos_.integrate(dt);
+        }
+
+        void rot_head(double angle) {
+            const glm::dquat iq{ 1, 0, 0, 0 };
+            const auto rot = glm::rotate(iq, angle, this->entt_up());
+            quat_ = glm::normalize(rot * quat_);
+        }
+        void rot_roll(double angle) {
+            const glm::dquat iq{ 1, 0, 0, 0 };
+            const auto rot = glm::rotate(iq, angle, this->entt_front());
+            quat_ = glm::normalize(rot * quat_);
+        }
+        void rot_elev(double angle) {
+            const glm::dquat iq{ 1, 0, 0, 0 };
+            const auto rot = glm::rotate(iq, angle, this->entt_right());
+            quat_ = glm::normalize(rot * quat_);
+        }
+
+        void perform_straight_flight(double dt) {
             const auto anti_gravity_n = glm::normalize(pos_.pos());
 
             // Adjust roll
@@ -110,30 +187,36 @@ namespace {
                 const auto align = glm::dot(anti_gravity_n, this->entt_front());
                 quat_ = glm::rotate(quat_, align * dt, this->entt_right());
             }
+        }
 
-            // Head forward
-            {
-                const double dst_speed = 1000000.0;
-                const auto align = glm::dot(anti_gravity_n, this->entt_up());
-                pos_.reset_acc();
-                if (align > 0.999) {
-                    pos_.add_acc(this->entt_front() * 1000.0);
-                }
+        void perform_head_along(double dt, glm::dvec3 direc) {
+            direc = glm::normalize(direc);
+            const auto dst_front_align = glm::dot(direc, this->entt_front());
+            const auto angle_off = sung::acos_safe(dst_front_align);
+
+            const auto dst_right_align = glm::dot(direc, this->entt_right());
+            const auto dst_up_align = glm::dot(direc, this->entt_up());
+
+            if (dst_up_align > 0) {
+                this->rot_roll(dt * dst_right_align);
+                this->rot_elev(dt * dst_up_align);
+            } else {
+                const auto dst_ailer = sung::signum(dst_right_align);
+                this->rot_roll(dt * dst_ailer);
             }
-
-            pos_.integrate(dt);
         }
 
-        glm::dvec3 make_eular() const {
-            const auto eular = glm::eulerAngles(quat_);
-            return glm::dvec3(eular.z, eular.y, eular.x);
+        void perform_test(double dt) {
+            this->rot_elev(dt);
+            SPDLOG_DEBUG(
+                "Right={}, quat=({:.2f}, {:.2f}, {:.2f}, {:.2f})",
+                disordat::to_str(this->entt_right()),
+                quat_.w,
+                quat_.x,
+                quat_.y,
+                quat_.z
+            );
         }
-
-        glm::dvec3 entt_front() const {
-            return quat_ * CENTER_TO_PRIME_MERIDIAN;
-        }
-        glm::dvec3 entt_up() const { return quat_ * (-CENTER_TO_NORTH); }
-        glm::dvec3 entt_right() const { return quat_ * (CENTER_TO_ASIA); }
 
     private:
         glm::dquat quat_;         // Quaternion
@@ -222,6 +305,12 @@ namespace {
 
         void tick() {
             const auto dt = timer_.check_get_elapsed();
+
+            if (auto target_pos = remote_entt_.select_target_pos()) {
+                const auto to_target = *target_pos - fixed_wing_.pos();
+                fixed_wing_.perform_head_along(dt, to_target);
+                // fixed_wing_.perform_test(dt);
+            }
             fixed_wing_.update(dt);
 
             disordat::EnttPdu pdu;
@@ -237,9 +326,7 @@ namespace {
             pdu.entt_loc_.set(fixed_wing_.pos());
             pdu.entt_orient_.set(fixed_wing_.make_eular());
             pdu.entt_appearance_.clear();
-            pdu.dead_reckoning_param_.set_default()
-                .set_algorithm(4)
-                .set_linear_acc(fixed_wing_.acc());
+            pdu.dead_reckoning_param_.set_default();
             pdu.entt_marking_.set_ascii(fixed_wing_.name_);
             pdu.entt_capabilities_.set(0);
             pdu.padding_.fill(0);
@@ -306,12 +393,12 @@ namespace {
                 recv_buffer_.data()
             );
 
-            SPDLOG_INFO(
-                "Received from {}: size={}, type={}",
-                ::to_str(remote_ep_tmp_),
-                bytes_transferred,
-                pdu_header->pdu_type_str()
-            );
+            // SPDLOG_INFO(
+            //     "Received from {}: size={}, type={}",
+            //     ::to_str(remote_ep_tmp_),
+            //     bytes_transferred,
+            //     pdu_header->pdu_type_str()
+            // );
 
             std::stringstream ss;
             ss << fmt::format("\nBytes ({})\n", bytes_transferred);
@@ -329,6 +416,7 @@ namespace {
                 }
 
                 ss << entt_pdu->make_readable();
+                remote_entt_.notify(*entt_pdu);
             } else if (pdu_header->pdu_type_ == 20) {
                 const auto data_pdu = reinterpret_cast<disordat::DataPdu*>(
                     recv_buffer_.data()

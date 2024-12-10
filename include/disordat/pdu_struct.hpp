@@ -65,6 +65,7 @@ namespace disordat {
     };
 
     const char* to_str(PduType pdu_type);
+    std::string to_str(const Vec3& v);
 
 
     class PduHeader {
@@ -159,6 +160,8 @@ namespace disordat {
 
 
     struct LinearVelVector {
+        Vec3 get() const { return Vec3(x_.get(), y_.get(), z_.get()); }
+
         LinearVelVector& set(float x, float y, float z) {
             x_.set(x);
             y_.set(y);
@@ -181,6 +184,8 @@ namespace disordat {
 
 
     struct WorldCoord {
+        Vec3 get() const { return Vec3(x_.get(), y_.get(), z_.get()); }
+
         WorldCoord& set(double x, double y, double z) {
             x_.set(x);
             y_.set(y);
