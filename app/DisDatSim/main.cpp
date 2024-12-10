@@ -298,7 +298,7 @@ namespace {
             }
 
             if (bytes_transferred < sizeof(disordat::PduHeader)) {
-                SPDLOG_WARN("Received bytes is less than PDU header size");
+                SPDLOG_WARN("Received data is smaller than PDU header size");
                 return this->start_recv();
             }
 
