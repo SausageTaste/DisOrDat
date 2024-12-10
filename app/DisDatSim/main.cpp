@@ -535,7 +535,9 @@ namespace {
     static_assert(8 * sizeof(EnttAppearance) == 32);
 
 
-    struct DeadReckoningParam {
+    class DeadReckoningParam {
+
+    public:
         DeadReckoningParam& set_default() {
             algorithm_ = 1;
             other_params_.fill(0);
@@ -544,6 +546,22 @@ namespace {
             return *this;
         }
 
+        DeadReckoningParam& set_algorithm(uint8_t x) {
+            algorithm_ = x;
+            return *this;
+        }
+
+        DeadReckoningParam& set_linear_acc(const Vec3& acc) {
+            linear_acc_.set(acc);
+            return *this;
+        }
+
+        DeadReckoningParam& set_angular_vel(const Vec3& vel) {
+            angular_vel_.set(vel);
+            return *this;
+        }
+
+    private:
         uint8_t algorithm_;
         std::array<uint8_t, 15> other_params_;
         LinearVelVector linear_acc_;
@@ -773,9 +791,9 @@ namespace {
             pdu.entt_loc_.set(fixed_wing_.pos());
             pdu.entt_orient_.set(fixed_wing_.make_eular());
             pdu.entt_appearance_.clear();
-            pdu.dead_reckoning_param_.set_default();
-            pdu.dead_reckoning_param_.algorithm_ = 4;
-            pdu.dead_reckoning_param_.linear_acc_.set(fixed_wing_.acc());
+            pdu.dead_reckoning_param_.set_default()
+                .set_algorithm(4)
+                .set_linear_acc(fixed_wing_.acc());
             pdu.entt_marking_.set_ascii(fixed_wing_.name_);
             pdu.entt_capabilities_.set(0);
             pdu.padding_.fill(0);
