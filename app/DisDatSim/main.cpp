@@ -1,5 +1,6 @@
 #include <chrono>
 #include <iostream>
+#include <set>
 #include <thread>
 #include <unordered_map>
 
@@ -852,6 +853,9 @@ namespace {
         void handle_recv(
             const std::error_code& error, size_t bytes_transferred
         ) {
+            if (eps_to_ignore_.find(remote_ep_tmp_) != eps_to_ignore_.end())
+                return this->start_recv();
+
             if (error) {
                 std::cerr << "Recv error: " << error.message() << std::endl;
                 return;
@@ -906,6 +910,12 @@ namespace {
                 const auto entt_pdu = reinterpret_cast<::EnttPdu*>(
                     recv_buffer_.data()
                 );
+
+                if (entt_pdu->entt_id_.site_id() == ::SITE_ID &&
+                    entt_pdu->entt_id_.app_id() == ::APP_ID) {
+                    eps_to_ignore_.insert(remote_ep_tmp_);
+                    return this->start_recv();
+                }
 
                 ss << fmt::format(
                     "  entt_id={}, force_id={}, num_of_articulation_param={}\n",
@@ -1027,6 +1037,7 @@ namespace {
         ClientManager clients_;
         std::array<char, 1024 * 8> recv_buffer_;
         std::vector<asio::const_buffer> send_buffer_;
+        std::set<asio::ip::udp::endpoint> eps_to_ignore_;
     };
 
 }  // namespace
