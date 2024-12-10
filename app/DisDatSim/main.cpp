@@ -146,7 +146,6 @@ namespace {
 
 namespace {
 
-
     template <typename T>
     void print_bytes(
         const T* data, size_t size, size_t line_size, size_t indent_size
@@ -169,80 +168,13 @@ namespace {
         SPDLOG_INFO(ss.str());
     }
 
-
-    class ClientRecord {
-
-    public:
-        double elapsed_since_comm() const {
-            return std::min(last_recv_.elapsed(), last_send_.elapsed());
-        }
-
-        sung::MonotonicRealtimeTimer last_recv_;
-        sung::MonotonicRealtimeTimer last_send_;
-    };
-
-
     std::string to_str(asio::ip::udp::endpoint ep) {
         return fmt::format("{}:{}", ep.address().to_string(), ep.port());
     }
 
-
-    class ClientManager {
-
-    public:
-        void update() {
-            for (auto it = data_.begin(); it != data_.end();) {
-                if (it->second.elapsed_since_comm() > 10) {
-                    SPDLOG_INFO("Client timed out: {}", ::to_str(it->first));
-                    it = data_.erase(it);
-                } else {
-                    ++it;
-                }
-            }
-        }
-
-        ClientRecord& notify_recv(const asio::ip::udp::endpoint& ep) {
-            auto& client = this->get_or_create(ep);
-            client.last_recv_.check();
-            return client;
-        }
-
-        ClientRecord& notify_send(const asio::ip::udp::endpoint& ep) {
-            auto& client = this->get_or_create(ep);
-            client.last_send_.check();
-            return client;
-        }
-
-        void print_all() const {
-            SPDLOG_INFO("Clients {}", data_.size());
-
-            for (const auto& [ep, record] : data_) {
-                SPDLOG_INFO(
-                    "  - {}:{}: recv={}, send={}",
-                    ep.address().to_string(),
-                    ep.port(),
-                    record.last_recv_.elapsed(),
-                    record.last_send_.elapsed()
-                );
-            }
-        }
-
-        auto begin() { return data_.begin(); }
-        auto end() { return data_.end(); }
-
-    private:
-        ClientRecord& get_or_create(const asio::ip::udp::endpoint& ep) {
-            auto it = data_.find(ep);
-            if (it == data_.end()) {
-                it = data_.emplace(ep, ClientRecord{}).first;
-                SPDLOG_INFO("Client added: {}", ::to_str(ep));
-            }
-
-            return it->second;
-        }
-
-        std::unordered_map<asio::ip::udp::endpoint, ClientRecord> data_;
-    };
+    asio::ip::address_v4 get_broadcast_ip() {
+        return asio::ip::address_v4::from_string("127.255.255.255");
+    }
 
 
     class UdpRadioTower {
@@ -251,9 +183,7 @@ namespace {
         UdpRadioTower(asio::io_context& io_context)
             : io_context_(io_context)
             , socket_(io_context)
-            , endpoint_(
-                  asio::ip::address_v4::from_string("127.255.255.255"), 3000
-              )
+            , endpoint_(::get_broadcast_ip(), 3000)
             , tick_timer_(io_context, std::chrono::milliseconds(5000)) {
             std::error_code error;
             socket_.open(asio::ip::udp::v4(), error);
@@ -338,20 +268,11 @@ namespace {
 
     public:
         UdpServer(asio::io_context& io_context)
-            : socket_(
-                  io_context, asio::ip::udp::endpoint(asio::ip::udp::v4(), 3000)
-              )
-            , tick_timer_(io_context, std::chrono::milliseconds(1000 / 30)) {
-            tick_timer_.async_wait(std::bind(&UdpServer::tick, this));
+            : ep_(asio::ip::udp::v4(), 3000), socket_(io_context, ep_) {
             this->start_recv();
         }
 
     private:
-        void tick() {
-            tick_timer_.async_wait(std::bind(&UdpServer::tick, this));
-            return;
-        }
-
         void start_recv() {
             socket_.async_receive_from(
                 asio::buffer(recv_buffer_),
@@ -375,11 +296,6 @@ namespace {
                 std::cerr << "Recv error: " << error.message() << std::endl;
                 return;
             }
-
-            clients_.notify_recv(remote_ep_tmp_);
-            clients_.update();
-
-            const auto line_count = bytes_transferred / 16;
 
             std::stringstream ss;
 
@@ -415,11 +331,6 @@ namespace {
             );
 
             if (pdu_header->pdu_type_ == 1) {
-                send_buffer_.clear();
-                send_buffer_.push_back(
-                    asio::buffer(recv_buffer_.data(), bytes_transferred)
-                );
-
                 ss << fmt::format("Entity State PDU\n");
 
                 const auto entt_pdu = reinterpret_cast<disordat::EnttPdu*>(
@@ -528,30 +439,10 @@ namespace {
             this->start_recv();
         }
 
-        void handle_send(
-            const std::error_code& error, std::size_t bytes_transferred
-        ) {
-            if (error) {
-                SPDLOG_ERROR(
-                    "Send error: {} ({})",
-                    error.message(),
-                    std::hash<std::thread::id>{}(std::this_thread::get_id())
-                );
-            } else {
-                SPDLOG_INFO(
-                    "Sent {} bytes ({})",
-                    bytes_transferred,
-                    std::hash<std::thread::id>{}(std::this_thread::get_id())
-                );
-            }
-        }
-
+        asio::ip::udp::endpoint ep_;
         asio::ip::udp::socket socket_;
-        asio::steady_timer tick_timer_;
         asio::ip::udp::endpoint remote_ep_tmp_;
-        ClientManager clients_;
         std::array<char, 1024 * 8> recv_buffer_;
-        std::vector<asio::const_buffer> send_buffer_;
         std::set<asio::ip::udp::endpoint> eps_to_ignore_;
     };
 
