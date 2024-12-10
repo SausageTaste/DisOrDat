@@ -3,6 +3,8 @@
 #include <thread>
 #include <unordered_map>
 
+#define SPDLOG_ACTIVE_LEVEL 0
+#include <spdlog/fmt/fmt.h>
 #include <spdlog/spdlog.h>
 #include <asio.hpp>
 #include <glm/glm.hpp>
@@ -914,6 +916,8 @@ namespace {
 
 
 int main() {
+    spdlog::set_level(spdlog::level::debug);
+
     asio::io_context io_context;
     ::UdpServer server(io_context);
     std::thread th([&] { io_context.run(); });
