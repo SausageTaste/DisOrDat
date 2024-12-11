@@ -39,6 +39,16 @@ namespace {
             }
             auto& entt = it->second;
             entt.pos_ = pdu.entt_loc_.get();
+            entt.last_update_.check();
+
+            // Erase entities of which has elapsed 5 seconds
+            for (auto it = entt_.begin(); it != entt_.end();) {
+                if (it->second.last_update_.has_elapsed(5.0)) {
+                    it = entt_.erase(it);
+                } else {
+                    ++it;
+                }
+            }
         }
 
         sung::Optional<glm::dvec3> select_target_pos() {
@@ -47,13 +57,17 @@ namespace {
             if (entt_.empty())
                 return sung::nullopt;
 
-            const auto it = entt_.begin();
-            return it->second.pos_;
+            for (auto& e : entt_) {
+                return e.second.pos_;
+            }
+
+            return sung::nullopt;
         }
 
     private:
         struct Entity {
             glm::dvec3 pos_;
+            sung::MonotonicRealtimeTimer last_update_;
         };
 
         std::unordered_map<std::string, Entity> entt_;
