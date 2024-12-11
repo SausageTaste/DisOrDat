@@ -153,7 +153,8 @@ namespace {
 
         void update(double dt) {
             pos_.reset_acc();
-            pos_.add_acc(this->entt_front() * 100.0);
+            pos_.add_acc(this->entt_front() * 500.0);
+            pos_.add_acc(pos_.vel() * -1.0);
             pos_.integrate(dt);
         }
 
@@ -326,7 +327,9 @@ namespace {
             pdu.entt_loc_.set(fixed_wing_.pos());
             pdu.entt_orient_.set(fixed_wing_.make_eular());
             pdu.entt_appearance_.clear();
-            pdu.dead_reckoning_param_.set_default();
+            pdu.dead_reckoning_param_.set_default()
+                .set_algorithm(4)
+                .set_linear_acc(fixed_wing_.acc());
             pdu.entt_marking_.set_ascii(fixed_wing_.name_);
             pdu.entt_capabilities_.set(0);
             pdu.padding_.fill(0);
