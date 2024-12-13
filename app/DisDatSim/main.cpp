@@ -233,8 +233,8 @@ namespace {
         }
 
         void integrate(double dt) {
-            vel_ += acc_ * dt;
             pos_ += vel_ * dt;
+            vel_ += acc_ * dt;
         }
 
     private:
@@ -330,10 +330,10 @@ namespace {
         void update(double dt) {
             ori_.integrate(dt);
 
+            pos_.integrate(dt);
             pos_.reset_acc();
             pos_.add_acc(this->entt_front() * 500.0);
             pos_.add_acc(pos_.vel() * -1.0);
-            pos_.integrate(dt);
         }
 
         void set_pos(const glm::dvec3& v) { pos_.set_pos(v); }
