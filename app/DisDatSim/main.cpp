@@ -1,4 +1,6 @@
 #include <chrono>
+#include <deque>
+#include <functional>
 #include <iostream>
 #include <mutex>
 #include <set>
@@ -26,53 +28,158 @@ namespace {
     const glm::dvec3 CENTER_TO_NORTH{ 0, 0, 1 };
 
 
-    class RemoteEntities {
+    template <typename T>
+    class MutsukiList {
 
     public:
-        void notify(const disordat::EnttPdu& pdu) {
+        size_t size() {
+            std::lock_guard<std::mutex> lock(mutsuki_);
+            return data_.size();
+        }
+
+        void push_back(T& value) {
+            std::lock_guard<std::mutex> lock(mutsuki_);
+            data_.emplace_back(value);
+        }
+
+        void push_back(T&& value) {
+            std::lock_guard<std::mutex> lock(mutsuki_);
+            data_.emplace_back(std::move(value));
+        }
+
+        T* try_get(size_t index) {
+            std::lock_guard<std::mutex> lock(mutsuki_);
+            if (index >= data_.size())
+                return nullptr;
+            return &data_[index];
+        }
+
+        void erase_if(std::function<bool(T&)> pred) {
             std::lock_guard<std::mutex> lock(mutsuki_);
 
-            const auto key = pdu.entt_id_.to_str();
-            auto it = entt_.find(key);
-            if (it == entt_.end()) {
-                it = entt_.emplace(key, Entity{}).first;
-            }
-            auto& entt = it->second;
-            entt.pos_ = pdu.entt_loc_.get();
-            entt.last_update_.check();
-
-            // Erase entities of which has elapsed 5 seconds
-            for (auto it = entt_.begin(); it != entt_.end();) {
-                if (it->second.last_update_.has_elapsed(5.0)) {
-                    it = entt_.erase(it);
+            for (auto it = data_.begin(); it != data_.end();) {
+                if (pred(*it)) {
+                    it = data_.erase(it);
                 } else {
                     ++it;
                 }
             }
         }
 
+    private:
+        std::vector<T> data_;
+        std::mutex mutsuki_;
+    };
+
+
+    class RemoteEntities {
+
+    public:
+        void notify(const disordat::EnttPdu& pdu) {
+            const auto key = pdu.entt_id_.to_str();
+            auto entt = entt_.get_or_create(key);
+            entt->update_pos(pdu.entt_loc_.get());
+
+            entt_.erase_if([](const auto& key, auto& entt) {
+                return entt.has_elapsed(5.0);
+            });
+        }
+
         sung::Optional<glm::dvec3> select_target_pos() {
-            std::lock_guard<std::mutex> lock(mutsuki_);
-
-            if (entt_.empty())
-                return sung::nullopt;
-
+            auto lock = entt_.lock();
             for (auto& e : entt_) {
-                return e.second.pos_;
+                return e.second->pos();
             }
 
             return sung::nullopt;
         }
 
     private:
-        struct Entity {
+        class Entity {
+
+        public:
+            void update_pos(const glm::dvec3& pos) {
+                std::lock_guard<std::mutex> lock(mutsuki_);
+                pos_ = pos;
+                last_update_.check();
+            }
+
+            glm::dvec3 pos() {
+                std::lock_guard<std::mutex> lock(mutsuki_);
+                return pos_;
+            }
+
+            bool has_elapsed(double sec) {
+                std::lock_guard<std::mutex> lock(mutsuki_);
+                return last_update_.has_elapsed(sec);
+            }
+
+        private:
             glm::dvec3 pos_;
             sung::MonotonicRealtimeTimer last_update_;
+            std::mutex mutsuki_;
         };
 
-        std::unordered_map<std::string, Entity> entt_;
-        std::mutex mutsuki_;
-    } remote_entt_;
+        class EntityMap {
+
+        public:
+            using map_t =
+                std::unordered_map<std::string, std::shared_ptr<Entity>>;
+
+            std::shared_ptr<Entity> find(const std::string& key) {
+                std::lock_guard<std::mutex> lock(mutsuki_);
+
+                auto it = data_.find(key);
+                if (it == data_.end())
+                    return nullptr;
+                return it->second;
+            }
+
+            std::shared_ptr<Entity> get_or_create(const std::string& key) {
+                std::lock_guard<std::mutex> lock(mutsuki_);
+
+                auto it = data_.find(key);
+                if (it != data_.end())
+                    return it->second;
+
+                auto e = std::make_shared<Entity>();
+                data_[key] = e;
+                return e;
+            }
+
+            void erase_if(std::function<bool(const std::string&, Entity&)> pred
+            ) {
+                std::lock_guard<std::mutex> lock(mutsuki_);
+
+                for (auto it = data_.begin(); it != data_.end();) {
+                    if (!it->second) {
+                        it = data_.erase(it);
+                    } else if (pred(it->first, *it->second)) {
+                        it = data_.erase(it);
+                    } else {
+                        ++it;
+                    }
+                }
+            }
+
+            bool empty() {
+                std::lock_guard<std::mutex> lock(mutsuki_);
+                return data_.empty();
+            }
+
+            std::lock_guard<std::mutex> lock() {
+                return std::lock_guard<std::mutex>(mutsuki_);
+            }
+            map_t::iterator begin() { return data_.begin(); }
+            map_t::iterator end() { return data_.end(); }
+
+        public:
+            map_t data_;
+            std::mutex mutsuki_;
+        };
+
+        EntityMap entt_;
+    };
 
 
     class Entity {
@@ -196,7 +303,7 @@ namespace {
     class SimpleFixedWing : public Entity {
 
     public:
-        SimpleFixedWing() { pos_.set_pos(-3049328.82, 4049133.27, 3859976.86); }
+        SimpleFixedWing() = default;
 
         const glm::dvec3& pos() override { return pos_.pos(); }
         const glm::dvec3& vel() override { return pos_.vel(); }
@@ -219,6 +326,11 @@ namespace {
             pos_.add_acc(pos_.vel() * -1.0);
             pos_.integrate(dt);
         }
+
+        void set_pos(const glm::dvec3& v) { pos_.set_pos(v); }
+
+        void set_speed(disordat::Speed speed) { speed_ = speed; }
+        void add_speed(disordat::Speed speed) { speed_ = speed_ + speed; }
 
         void perform_straight_flight(double dt) {
             const auto anti_gravity_n = glm::normalize(pos_.pos());
@@ -253,10 +365,54 @@ namespace {
             }
         }
 
+        auto lock() { return std::lock_guard<std::mutex>(mutsuki_); }
+
     private:
+        std::mutex mutsuki_;
         AirplaneIntegrator ori_;  // Quaternion
         PositionIntegrator pos_;  // Geocentric position
-        double speed_ = 0;        // Speed in m/s
+        disordat::Speed speed_;
+    };
+
+
+    class Scene {
+
+    public:
+        Scene() {
+            const glm::dvec3 init_pos(-3049328.82, 4049133.27, 3859976.86);
+            auto e = std::make_shared<SimpleFixedWing>();
+            e->name_ = "Jay 20 fixed wing";
+            e->dis_id_ = 1;
+            e->set_pos(init_pos);
+            local_entt_.push_back(e);
+        }
+
+        void do_frame() {
+            const auto dt = timer_.check_get_elapsed();
+
+            for (size_t i = 0; i < local_entt_.size(); ++i) {
+                auto entt_ptr = local_entt_.try_get(i);
+                if (nullptr == entt_ptr)
+                    break;
+                auto entt = *entt_ptr;
+                auto lock = entt->lock();
+
+                if (auto target_pos = remote_entt_.select_target_pos()) {
+                    const auto to_target = *target_pos - entt->pos();
+                    entt->perform_head_along(dt, to_target);
+                    entt->set_speed(disordat::Speed::from_kts(1500));
+                } else {
+                    SPDLOG_WARN("No target found");
+                }
+                entt->update(dt);
+            }
+        }
+
+        ::MutsukiList<std::shared_ptr<SimpleFixedWing>> local_entt_;
+        ::RemoteEntities remote_entt_;
+
+    private:
+        sung::MonotonicRealtimeTimer timer_;
     };
 
 }  // namespace
@@ -298,8 +454,9 @@ namespace {
     class UdpRadioTower {
 
     public:
-        UdpRadioTower(asio::io_context& io_context)
-            : io_context_(io_context)
+        UdpRadioTower(asio::io_context& io_context, ::Scene& scene)
+            : scene_(scene)
+            , io_context_(io_context)
             , socket_(io_context)
             , endpoint_(::get_broadcast_ip(), 3000)
             , tick_timer_(io_context, std::chrono::milliseconds(5000)) {
@@ -314,10 +471,6 @@ namespace {
             socket_.set_option(asio::ip::udp::socket::reuse_address(true));
             socket_.set_option(asio::socket_base::broadcast(true));
 
-            fixed_wing_.name_ = "Jay 20 fixed wing";
-            fixed_wing_.dis_id_ = 1;
-
-            timer_.check();
             this->start_tick();
         }
 
@@ -332,68 +485,65 @@ namespace {
 
     private:
         void start_tick() {
+            constexpr auto PACKETS_PER_SEC = 1.0;
+            constexpr auto MS_INTERVAL = 1000.0 / PACKETS_PER_SEC;
+            constexpr auto MS_INTERVAL_INT = static_cast<int>(MS_INTERVAL);
             tick_timer_ = asio::steady_timer(
-                io_context_, std::chrono::milliseconds(1000 / 20)
+                io_context_, std::chrono::milliseconds(MS_INTERVAL_INT)
             );
             tick_timer_.async_wait(std::bind(&UdpRadioTower::tick, this));
         }
 
         void tick() {
-            const auto dt = timer_.check_get_elapsed();
+            for (size_t i = 0; i < scene_.local_entt_.size(); ++i) {
+                auto entt_ptr = scene_.local_entt_.try_get(i);
+                if (nullptr == entt_ptr)
+                    break;
+                auto e = *entt_ptr;
+                auto lock = e->lock();
 
-            if (auto target_pos = remote_entt_.select_target_pos()) {
-                const auto to_target = *target_pos - fixed_wing_.pos();
-                fixed_wing_.perform_head_along(dt, to_target);
-                // fixed_wing_.perform_test(dt);
+                disordat::EnttPdu pdu;
+                pdu.header_.set_default()
+                    .set_type(disordat::PduType::entity_state)
+                    .set_len(sizeof(disordat::EnttPdu));
+                pdu.entt_id_.set(::SITE_ID, ::APP_ID, e->dis_id_);
+                pdu.force_id_ = 2;
+                pdu.num_of_articulation_param_ = 0;
+                pdu.entt_type_.set(1, 2, 45, 1, 7, 0, 0);
+                pdu.alt_entt_type_.set(1, 1, 225, 1, 1, 1, 0);
+                pdu.entt_linear_vel_.set(e->vel());
+                pdu.entt_loc_.set(e->pos());
+                pdu.entt_orient_.set(e->make_eular());
+                pdu.entt_appearance_.clear();
+                pdu.dead_reckoning_param_.set_default()
+                    .set_algorithm(4)
+                    .set_linear_acc(e->acc())
+                    .set_angular_vel(e->make_rotational_vel());
+                pdu.entt_marking_.set_ascii(e->name_);
+                pdu.entt_capabilities_.set(0);
+                pdu.padding_.fill(0);
+
+                socket_.send_to(asio::buffer(&pdu, sizeof(pdu)), endpoint_);
             }
-            fixed_wing_.update(dt);
-
-            disordat::EnttPdu pdu;
-            pdu.header_.set_default()
-                .set_type(disordat::PduType::entity_state)
-                .set_len(sizeof(disordat::EnttPdu));
-            pdu.entt_id_.set(::SITE_ID, ::APP_ID, fixed_wing_.dis_id_);
-            pdu.force_id_ = 3;
-            pdu.num_of_articulation_param_ = 0;
-            pdu.entt_type_.set(1, 2, 45, 1, 7, 0, 0);
-            pdu.alt_entt_type_.set(1, 1, 225, 1, 1, 1, 0);
-            pdu.entt_linear_vel_.set(fixed_wing_.vel());
-            pdu.entt_loc_.set(fixed_wing_.pos());
-            pdu.entt_orient_.set(fixed_wing_.make_eular());
-            pdu.entt_appearance_.clear();
-            pdu.dead_reckoning_param_.set_default()
-                .set_algorithm(4)
-                .set_linear_acc(fixed_wing_.acc())
-                .set_angular_vel(fixed_wing_.make_rotational_vel());
-            pdu.entt_marking_.set_ascii(fixed_wing_.name_);
-            pdu.entt_capabilities_.set(0);
-            pdu.padding_.fill(0);
-
-            socket_.send_to(asio::buffer(&pdu, sizeof(pdu)), endpoint_);
-            // SPDLOG_INFO(
-            //     "Sent to {}: len={}, type={}",
-            //     ::to_str(endpoint_),
-            //     pdu.header_.length_.get(),
-            //     pdu.header_.pdu_type_str()
-            // );
 
             this->start_tick();
         }
 
+        ::Scene& scene_;
         asio::io_context& io_context_;
         asio::ip::udp::socket socket_;
         asio::ip::udp::endpoint endpoint_;
         asio::steady_timer tick_timer_;
-        sung::MonotonicRealtimeTimer timer_;
-        ::SimpleFixedWing fixed_wing_;
     };
 
 
     class UdpServer {
 
     public:
-        UdpServer(asio::io_context& io_context)
-            : ep_(asio::ip::udp::v4(), 3000), socket_(io_context, ep_) {
+        UdpServer(asio::io_context& io_context, ::Scene& scene)
+            : scene_(scene)
+            , ep_(asio::ip::udp::v4(), 3000)
+            , socket_(io_context, ep_) {
             this->start_recv();
         }
 
@@ -454,7 +604,7 @@ namespace {
                 }
 
                 ss << entt_pdu->make_readable();
-                remote_entt_.notify(*entt_pdu);
+                scene_.remote_entt_.notify(*entt_pdu);
             } else if (pdu_header->pdu_type_ == 20) {
                 const auto data_pdu = reinterpret_cast<disordat::DataPdu*>(
                     recv_buffer_.data()
@@ -466,6 +616,7 @@ namespace {
             this->start_recv();
         }
 
+        ::Scene& scene_;
         asio::ip::udp::endpoint ep_;
         asio::ip::udp::socket socket_;
         asio::ip::udp::endpoint remote_ep_tmp_;
@@ -479,14 +630,16 @@ namespace {
 int main() {
     spdlog::set_level(spdlog::level::debug);
 
+    ::Scene scene;
+
     asio::io_context io_context;
-    ::UdpServer server(io_context);
+    ::UdpServer server(io_context, scene);
+    ::UdpRadioTower radio_tower(io_context, scene);
     std::thread th([&] { io_context.run(); });
 
-    ::UdpRadioTower radio_tower(io_context);
-
     while (true) {
-        std::this_thread::sleep_for(std::chrono::seconds(1));
+        scene.do_frame();
+        std::this_thread::sleep_for(std::chrono::milliseconds(1000 / 30));
     }
 
     return 0;

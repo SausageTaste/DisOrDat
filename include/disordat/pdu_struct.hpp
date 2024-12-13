@@ -3,12 +3,14 @@
 #include <glm/vec3.hpp>
 #include <sung/general/angle.hpp>
 #include <sung/general/bytes.hpp>
+#include <sung/general/units.hpp>
 
 
 namespace disordat {
 
     using Vec3 = glm::dvec3;
     using Angle = sung::TAngle<double>;
+    using Speed = sung::TSpeed<double>;
 
 
     enum class PduType {
