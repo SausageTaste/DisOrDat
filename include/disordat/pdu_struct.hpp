@@ -78,6 +78,7 @@ namespace disordat {
 
         PduHeader& set_default();
         PduHeader& set_type(PduType pdu_type);
+        PduHeader& set_timestamp();
         PduHeader& set_len(uint16_t len);
 
         uint8_t version_;

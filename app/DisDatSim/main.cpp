@@ -247,6 +247,8 @@ namespace {
     public:
         AirplaneIntegrator() : quat_(1, 0, 0, 0) {}
 
+        const glm::dquat& quat() const { return quat_; }
+
         glm::dvec3 entt_front() const {
             return glm::mat4_cast(quat_) *
                    glm::dvec4(CENTER_TO_PRIME_MERIDIAN, 0);
@@ -269,8 +271,8 @@ namespace {
 
         void integrate(double dt) {
             this->rot_roll(vel_roll_ * dt);
-            this->rot_elev(vel_elev_ * dt);
             this->rot_head(vel_head_ * dt);
+            this->rot_elev(vel_elev_ * dt);
         }
 
         double vel_head_ = 0;
@@ -522,6 +524,7 @@ namespace {
                 pdu.entt_marking_.set_ascii(e->name_);
                 pdu.entt_capabilities_.set(0);
                 pdu.padding_.fill(0);
+                pdu.header_.set_timestamp();
 
                 socket_.send_to(asio::buffer(&pdu, sizeof(pdu)), endpoint_);
             }
@@ -639,7 +642,7 @@ int main() {
 
     while (true) {
         scene.do_frame();
-        std::this_thread::sleep_for(std::chrono::milliseconds(1000 / 30));
+        // std::this_thread::sleep_for(std::chrono::milliseconds(1000 / 30));
     }
 
     return 0;

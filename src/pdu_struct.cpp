@@ -148,6 +148,11 @@ namespace disordat {
         return *this;
     }
 
+    PduHeader& PduHeader::set_timestamp() {
+        timestamp_.set(sung::get_time_unix());
+        return *this;
+    }
+
     PduHeader& PduHeader::set_len(uint16_t len) {
         length_ = len;
         return *this;
