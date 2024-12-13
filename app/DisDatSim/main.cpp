@@ -135,57 +135,89 @@ namespace {
     };
 
 
-    class SimpleFixedWing : public Entity {
+    class AirplaneIntegrator {
 
     public:
-        SimpleFixedWing() : quat_(1, 0, 0, 0) {
-            pos_.set_pos(-3049328.82, 4049133.27, 3859976.86);
-            this->rot_roll(glm::radians(45.0));
-        }
-
-        const glm::dvec3& pos() override { return pos_.pos(); }
-        const glm::dvec3& vel() override { return pos_.vel(); }
-        const glm::dvec3& acc() override { return pos_.acc(); }
-
-        glm::dvec3 make_eular() const {
-            const auto eular = glm::eulerAngles(quat_);
-            return glm::dvec3(eular.z, eular.y, eular.x);
-        }
+        AirplaneIntegrator() : quat_(1, 0, 0, 0) {}
 
         glm::dvec3 entt_front() const {
             return glm::mat4_cast(quat_) *
                    glm::dvec4(CENTER_TO_PRIME_MERIDIAN, 0);
         }
+
         glm::dvec3 entt_up() const {
             return glm::mat4_cast(quat_) * glm::dvec4(-CENTER_TO_NORTH, 0);
         }
+
         glm::dvec3 entt_right() const {
             return glm::normalize(
                 glm::mat4_cast(quat_) * glm::dvec4(CENTER_TO_ASIA, 0)
             );
         }
 
-        void update(double dt) {
-            pos_.reset_acc();
-            pos_.add_acc(this->entt_front() * 500.0);
-            pos_.add_acc(pos_.vel() * -1.0);
-            pos_.integrate(dt);
+        glm::dvec3 make_eular() const {
+            const auto eular = glm::eulerAngles(quat_);
+            return glm::dvec3(eular.z, eular.y, eular.x);
         }
 
+        void integrate(double dt) {
+            this->rot_roll(vel_roll_ * dt);
+            this->rot_elev(vel_elev_ * dt);
+            this->rot_head(vel_head_ * dt);
+        }
+
+        double vel_head_ = 0;
+        double vel_elev_ = 0;
+        double vel_roll_ = 0;
+
+    private:
         void rot_head(double angle) {
             const glm::dquat iq{ 1, 0, 0, 0 };
             const auto rot = glm::rotate(iq, angle, this->entt_up());
             quat_ = glm::normalize(rot * quat_);
         }
+
         void rot_roll(double angle) {
             const glm::dquat iq{ 1, 0, 0, 0 };
             const auto rot = glm::rotate(iq, angle, this->entt_front());
             quat_ = glm::normalize(rot * quat_);
         }
+
         void rot_elev(double angle) {
             const glm::dquat iq{ 1, 0, 0, 0 };
             const auto rot = glm::rotate(iq, angle, this->entt_right());
             quat_ = glm::normalize(rot * quat_);
+        }
+
+        glm::dquat quat_;
+    };
+
+
+    class SimpleFixedWing : public Entity {
+
+    public:
+        SimpleFixedWing() { pos_.set_pos(-3049328.82, 4049133.27, 3859976.86); }
+
+        const glm::dvec3& pos() override { return pos_.pos(); }
+        const glm::dvec3& vel() override { return pos_.vel(); }
+        const glm::dvec3& acc() override { return pos_.acc(); }
+
+        glm::dvec3 make_eular() const { return ori_.make_eular(); }
+        glm::dvec3 make_rotational_vel() const {
+            return glm::dvec3(ori_.vel_head_, ori_.vel_elev_, ori_.vel_roll_);
+        }
+
+        glm::dvec3 entt_front() const { return ori_.entt_front(); }
+        glm::dvec3 entt_up() const { return ori_.entt_up(); }
+        glm::dvec3 entt_right() const { return ori_.entt_right(); }
+
+        void update(double dt) {
+            ori_.integrate(dt);
+
+            pos_.reset_acc();
+            pos_.add_acc(this->entt_front() * 500.0);
+            pos_.add_acc(pos_.vel() * -1.0);
+            pos_.integrate(dt);
         }
 
         void perform_straight_flight(double dt) {
@@ -194,13 +226,13 @@ namespace {
             // Adjust roll
             {
                 const auto align = glm::dot(anti_gravity_n, this->entt_right());
-                quat_ = glm::rotate(quat_, align * dt, this->entt_front());
+                ori_.vel_roll_ = align;
             }
 
             // Adjust elevation
             {
                 const auto align = glm::dot(anti_gravity_n, this->entt_front());
-                quat_ = glm::rotate(quat_, align * dt, this->entt_right());
+                ori_.vel_elev_ = align;
             }
         }
 
@@ -213,28 +245,16 @@ namespace {
             const auto dst_up_align = glm::dot(direc, this->entt_up());
 
             if (dst_up_align > 0) {
-                this->rot_roll(dt * dst_right_align);
-                this->rot_elev(dt * dst_up_align);
+                ori_.vel_roll_ = dst_right_align;
+                ori_.vel_elev_ = dst_up_align;
             } else {
                 const auto dst_ailer = sung::signum(dst_right_align);
-                this->rot_roll(dt * dst_ailer);
+                ori_.vel_roll_ = dst_ailer;
             }
         }
 
-        void perform_test(double dt) {
-            this->rot_elev(dt);
-            SPDLOG_DEBUG(
-                "Right={}, quat=({:.2f}, {:.2f}, {:.2f}, {:.2f})",
-                disordat::to_str(this->entt_right()),
-                quat_.w,
-                quat_.x,
-                quat_.y,
-                quat_.z
-            );
-        }
-
     private:
-        glm::dquat quat_;         // Quaternion
+        AirplaneIntegrator ori_;  // Quaternion
         PositionIntegrator pos_;  // Geocentric position
         double speed_ = 0;        // Speed in m/s
     };
@@ -313,7 +333,7 @@ namespace {
     private:
         void start_tick() {
             tick_timer_ = asio::steady_timer(
-                io_context_, std::chrono::milliseconds(200)
+                io_context_, std::chrono::milliseconds(1000 / 20)
             );
             tick_timer_.async_wait(std::bind(&UdpRadioTower::tick, this));
         }
@@ -343,7 +363,8 @@ namespace {
             pdu.entt_appearance_.clear();
             pdu.dead_reckoning_param_.set_default()
                 .set_algorithm(4)
-                .set_linear_acc(fixed_wing_.acc());
+                .set_linear_acc(fixed_wing_.acc())
+                .set_angular_vel(fixed_wing_.make_rotational_vel());
             pdu.entt_marking_.set_ascii(fixed_wing_.name_);
             pdu.entt_capabilities_.set(0);
             pdu.padding_.fill(0);
