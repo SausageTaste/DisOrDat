@@ -7,12 +7,14 @@
 #include <thread>
 #include <unordered_map>
 
+#define GLM_ENABLE_EXPERIMENTAL
 #define SPDLOG_ACTIVE_LEVEL 0
 #include <spdlog/fmt/fmt.h>
 #include <spdlog/spdlog.h>
 #include <asio.hpp>
 #include <glm/glm.hpp>
 #include <glm/gtc/quaternion.hpp>
+#include <glm/gtx/euler_angles.hpp>
 #include <sung/general/time.hpp>
 
 #include "disordat/pdu_struct.hpp"
@@ -242,6 +244,16 @@ namespace {
     };
 
 
+    glm::dvec3 to_euler(const glm::dquat& q) {
+        glm::mat4 m = mat4_cast(q);
+
+        float y, p, r;
+        glm::extractEulerAngleZYX(m, y, p, r);
+
+        return glm::vec3{ y, p, r };
+    }
+
+
     class AirplaneIntegrator {
 
     public:
@@ -264,15 +276,12 @@ namespace {
             );
         }
 
-        glm::dvec3 make_eular() const {
-            const auto eular = glm::eulerAngles(quat_);
-            return glm::dvec3(eular.z, eular.y, eular.x);
-        }
+        glm::dvec3 make_eular() const { return ::to_euler(quat_); }
 
         void integrate(double dt) {
-            this->rot_roll(vel_roll_ * dt);
             this->rot_head(vel_head_ * dt);
             this->rot_elev(vel_elev_ * dt);
+            this->rot_roll(vel_roll_ * dt);
         }
 
         double vel_head_ = 0;
@@ -305,15 +314,13 @@ namespace {
     class SimpleFixedWing : public Entity {
 
     public:
-        SimpleFixedWing() = default;
-
         const glm::dvec3& pos() override { return pos_.pos(); }
         const glm::dvec3& vel() override { return pos_.vel(); }
         const glm::dvec3& acc() override { return pos_.acc(); }
 
         glm::dvec3 make_eular() const { return ori_.make_eular(); }
         glm::dvec3 make_rotational_vel() const {
-            return glm::dvec3(ori_.vel_head_, ori_.vel_elev_, ori_.vel_roll_);
+            return glm::dvec3(ori_.vel_roll_, ori_.vel_elev_, ori_.vel_head_);
         }
 
         glm::dvec3 entt_front() const { return ori_.entt_front(); }
@@ -359,11 +366,11 @@ namespace {
             const auto dst_up_align = glm::dot(direc, this->entt_up());
 
             if (dst_up_align > 0) {
-                ori_.vel_roll_ = dst_right_align;
-                ori_.vel_elev_ = dst_up_align;
+                ori_.vel_roll_ = dst_right_align * 0.5;
+                ori_.vel_elev_ = dst_up_align * 0.5;
             } else {
                 const auto dst_ailer = sung::signum(dst_right_align);
-                ori_.vel_roll_ = dst_ailer;
+                ori_.vel_roll_ = dst_ailer * 0.5;
             }
         }
 
@@ -487,7 +494,7 @@ namespace {
 
     private:
         void start_tick() {
-            constexpr auto PACKETS_PER_SEC = 1.0;
+            constexpr auto PACKETS_PER_SEC = 2.0;
             constexpr auto MS_INTERVAL = 1000.0 / PACKETS_PER_SEC;
             constexpr auto MS_INTERVAL_INT = static_cast<int>(MS_INTERVAL);
             tick_timer_ = asio::steady_timer(
@@ -642,7 +649,7 @@ int main() {
 
     while (true) {
         scene.do_frame();
-        // std::this_thread::sleep_for(std::chrono::milliseconds(1000 / 30));
+        std::this_thread::sleep_for(std::chrono::milliseconds(1000 / 30));
     }
 
     return 0;
