@@ -552,6 +552,41 @@ namespace {
                 pdu.header_.set_timestamp();
 
                 socket_.send_to(asio::buffer(&pdu, sizeof(pdu)), endpoint_);
+
+                /*
+                {
+                    static std::atomic_uint16_t seq = 0;
+
+                    disordat::ElectromagneticEmissionPdu pdu;
+                    pdu.header_.set_default()
+                        .set_type(disordat::PduType::electronic_emission)
+                        .set_len(sizeof(disordat::ElectromagneticEmissionPdu));
+                    pdu.emitting_entt_.set(::SITE_ID, ::APP_ID, e->dis_id_);
+                    pdu.event_id_.set(::SITE_ID, ::APP_ID, seq++);
+
+                    auto& emi_sys = pdu.emission_sys_;
+                    emi_sys.system_data_len_ = 18;
+                    emi_sys.num_of_beams_ = 1;
+                    emi_sys.emitter_systems_.emitter_name_.set(1945);
+                    emi_sys.emitter_systems_.func_ = 5;
+                    emi_sys.emitter_systems_.emitter_id_ = 0;
+                    emi_sys.loc_.set(3, 0, 0);
+                    emi_sys.beam_id_num_ = 1;
+                    emi_sys.beam_data_len_ = 13;
+                    emi_sys.beam_func_ = 1;
+
+                    auto& funda_param = emi_sys.fundamental_param_data_;
+                    funda_param.beam_azi_center_.set(0);
+                    funda_param.beam_azi_sweep_.set(0.523599);
+                    funda_param.beam_elev_center_.set(0.349066);
+                    funda_param.beam_elev_sweep_.set(0.523599);
+                    funda_param.freq_.set(9e+09);
+                    funda_param.freq_range_.set(5000);
+                    funda_param.effective_radiated_power_.set(70);
+                    pdu.header_.set_timestamp();
+                    socket_.send_to(asio::buffer(&pdu, sizeof(pdu)), endpoint_);
+                }
+                */
             }
 
             this->start_tick();
