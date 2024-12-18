@@ -132,6 +132,24 @@ namespace disordat {
     static_assert(8 * sizeof(EnttId) == 48, "");
 
 
+    class EventId {
+
+    public:
+        uint16_t site_id() const;
+        uint16_t app_id() const;
+        uint16_t event_id() const;
+
+        std::string to_str() const;
+
+        EventId& set(uint16_t site_id, uint16_t app_id, uint16_t entt_id);
+
+    private:
+        SimAdress sim_addr_;
+        sung::BEValue<uint16_t> event_id_;
+    };
+    static_assert(8 * sizeof(EnttId) == 48, "");
+
+
     struct FixedDatum {
         sung::BEValue<uint32_t> datum_id_;
         sung::BEValue<uint32_t> datum_value_;
@@ -314,10 +332,62 @@ namespace disordat {
         EnttMarking& clear();
         EnttMarking& set_ascii(const std::string& str);
 
-        uint8_t charset_;
+        uint8_t charset_ = 0;
         std::array<uint8_t, 11> str_;
     };
     static_assert(8 * sizeof(EnttMarking) == 96, "");
+
+
+    struct EmitterSystem {
+        sung::BEValue<uint16_t> emitter_name_;
+        uint8_t func_ = 0;
+        uint8_t emitter_id_ = 0;
+    };
+
+
+    struct FundamentalParameterData {
+        sung::BEValue<float> freq_;
+        sung::BEValue<float> freq_range_;
+        sung::BEValue<float> effective_radiated_power_;
+        sung::BEValue<float> pulse_repetition_freq_;
+        sung::BEValue<float> pulse_width_;
+        sung::BEValue<float> beam_azi_center_;
+        sung::BEValue<float> beam_azi_sweep_;
+        sung::BEValue<float> beam_elev_center_;
+        sung::BEValue<float> beam_elev_sweep_;
+        sung::BEValue<float> beam_sweep_sync_;
+    };
+    static_assert(8 * sizeof(FundamentalParameterData) == 320, "");
+
+
+    struct TrackJam {
+        sung::BEValue<uint16_t> site_id_;
+        sung::BEValue<uint16_t> app_id_;
+        sung::BEValue<uint16_t> entt_id_;
+        uint8_t emitter_id_num_ = 0;
+        uint8_t beam_id_num_ = 0;
+    };
+    static_assert(8 * sizeof(TrackJam) == 64, "");
+
+
+    struct EmissionSystem {
+        uint8_t system_data_len_ = 0;
+        uint8_t num_of_beams_ = 0;
+        uint16_t padding_ = 0;
+        EmitterSystem emitter_systems_;
+        Vec3Float loc_;
+        uint8_t beam_data_len_ = 0;
+        uint8_t beam_id_num_ = 0;
+        sung::BEValue<uint16_t> beam_param_index_;
+        FundamentalParameterData fundamental_param_data_;
+        uint8_t beam_func_ = 0;
+        uint8_t num_of_targets_in_track_jam_ = 0;
+        uint8_t high_density_track_jam_ = 0;
+        uint8_t padding2_ = 0;
+        sung::BEValue<uint32_t> jamming_mode_seq_;
+        TrackJam track_jam_;
+    };
+    static_assert(8 * sizeof(EmissionSystem) == 640, "");
 
 
     struct DataPdu {
@@ -352,5 +422,17 @@ namespace disordat {
         std::array<uint8_t, 128 / 8> padding_;
     };
     static_assert(8 * sizeof(EnttPdu) == 1280, "");
+
+
+    struct ElectromagneticEmissionPdu {
+        PduHeader header_;
+        EnttId emitting_entt_;
+        EventId event_id_;
+        uint8_t state_update_indicator_ = 0;
+        uint8_t num_of_systems_ = 1;
+        sung::BEValue<uint16_t> padding_;
+        EmissionSystem emission_sys_;
+    };
+    static_assert(8 * sizeof(ElectromagneticEmissionPdu) == 864, "");
 
 }  // namespace disordat

@@ -234,6 +234,29 @@ namespace disordat {
 }  // namespace disordat
 
 
+// EventId
+namespace disordat {
+
+    uint16_t EventId::site_id() const { return sim_addr_.site_id_.get(); }
+    uint16_t EventId::app_id() const { return sim_addr_.app_id_.get(); }
+    uint16_t EventId::event_id() const { return event_id_.get(); }
+
+    std::string EventId::to_str() const {
+        return fmt::format(
+            "{}:{}:{}", this->site_id(), this->app_id(), this->event_id()
+        );
+    }
+
+    EventId& EventId::set(uint16_t site_id, uint16_t app_id, uint16_t evt_id) {
+        sim_addr_.site_id_.set(site_id);
+        sim_addr_.app_id_.set(app_id);
+        event_id_.set(evt_id);
+        return *this;
+    }
+
+}  // namespace disordat
+
+
 // DeadReckoningParam
 namespace disordat {
 
