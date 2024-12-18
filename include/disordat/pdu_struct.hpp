@@ -178,17 +178,17 @@ namespace disordat {
     static_assert(8 * sizeof(EnttType) == 64, "");
 
 
-    struct LinearVelVector {
+    struct Vec3Float {
         Vec3 get() const { return Vec3(x_.get(), y_.get(), z_.get()); }
 
-        LinearVelVector& set(float x, float y, float z) {
+        Vec3Float& set(float x, float y, float z) {
             x_.set(x);
             y_.set(y);
             z_.set(z);
             return *this;
         }
 
-        LinearVelVector& set(const Vec3& v) {
+        Vec3Float& set(const Vec3& v) {
             x_.set(v.x);
             y_.set(v.y);
             z_.set(v.z);
@@ -199,20 +199,20 @@ namespace disordat {
         sung::BEValue<float> y_;
         sung::BEValue<float> z_;
     };
-    static_assert(8 * sizeof(LinearVelVector) == 96, "");
+    static_assert(8 * sizeof(Vec3Float) == 96, "");
 
 
-    struct WorldCoord {
+    struct Vec3Double {
         Vec3 get() const { return Vec3(x_.get(), y_.get(), z_.get()); }
 
-        WorldCoord& set(double x, double y, double z) {
+        Vec3Double& set(double x, double y, double z) {
             x_.set(x);
             y_.set(y);
             z_.set(z);
             return *this;
         }
 
-        WorldCoord& set(const Vec3& v) {
+        Vec3Double& set(const Vec3& v) {
             x_.set(v.x);
             y_.set(v.y);
             z_.set(v.z);
@@ -223,7 +223,7 @@ namespace disordat {
         sung::BEValue<double> y_;
         sung::BEValue<double> z_;
     };
-    static_assert(8 * sizeof(WorldCoord) == 192, "");
+    static_assert(8 * sizeof(Vec3Double) == 192, "");
 
 
     /**
@@ -304,8 +304,8 @@ namespace disordat {
     private:
         uint8_t algorithm_;
         std::array<uint8_t, 15> other_params_;
-        LinearVelVector linear_acc_;
-        LinearVelVector angular_vel_;
+        Vec3Float linear_acc_;
+        Vec3Float angular_vel_;
     };
     static_assert(8 * sizeof(DeadReckoningParam) == 320, "");
 
@@ -342,8 +342,8 @@ namespace disordat {
         uint8_t num_of_articulation_param_;
         EnttType entt_type_;
         EnttType alt_entt_type_;
-        LinearVelVector entt_linear_vel_;
-        WorldCoord entt_loc_;
+        Vec3Float entt_linear_vel_;
+        Vec3Double entt_loc_;
         EulerAngles entt_orient_;
         EnttAppearance entt_appearance_;
         DeadReckoningParam dead_reckoning_param_;
