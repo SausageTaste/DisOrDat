@@ -80,7 +80,7 @@ namespace {
         void notify(const disordat::EnttPdu& pdu) {
             const auto key = pdu.entt_id_.to_str();
             auto entt = entt_.get_or_create(key);
-            entt->update_pos(pdu.entt_loc_.get());
+            entt->update(pdu);
 
             entt_.erase_if([](const auto& key, auto& entt) {
                 return entt.has_elapsed(5.0);
@@ -89,7 +89,11 @@ namespace {
 
         sung::Optional<glm::dvec3> select_target_pos() {
             auto lock = entt_.lock();
+
             for (auto& e : entt_) {
+                if (!e.second->is_airplane())
+                    continue;
+
                 return e.second->pos();
             }
 
@@ -100,15 +104,27 @@ namespace {
         class Entity {
 
         public:
-            void update_pos(const glm::dvec3& pos) {
+            void update(const disordat::EnttPdu& pdu) {
                 std::lock_guard<std::mutex> lock(mutsuki_);
-                pos_ = pos;
+                pos_ = pdu.entt_loc_.get();
+                entt_type_ = pdu.entt_type_;
                 last_update_.check();
             }
 
             glm::dvec3 pos() {
                 std::lock_guard<std::mutex> lock(mutsuki_);
                 return pos_;
+            }
+
+            bool is_airplane() {
+                std::lock_guard<std::mutex> lock(mutsuki_);
+
+                if (entt_type_.kind_ != 1)
+                    return false;
+                if (entt_type_.domain_ != 2)
+                    return false;
+
+                return true;
             }
 
             bool has_elapsed(double sec) {
@@ -118,6 +134,7 @@ namespace {
 
         private:
             glm::dvec3 pos_;
+            disordat::EnttType entt_type_;
             sung::MonotonicRealtimeTimer last_update_;
             std::mutex mutsuki_;
         };
@@ -598,10 +615,6 @@ namespace {
             //     bytes_transferred,
             //     pdu_header->pdu_type_str()
             // );
-
-            SPDLOG_INFO(
-                "Timestamp: {}", pdu_header->timestamp_.make_readable()
-            );
 
             std::stringstream ss;
             ss << fmt::format("\nBytes ({})\n", bytes_transferred);
