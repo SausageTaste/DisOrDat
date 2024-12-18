@@ -1,9 +1,27 @@
 #include "disordat/pdu_struct.hpp"
 
+#include <bitset>
 #include <sstream>
 
 #include <spdlog/spdlog.h>
 #include <sung/general/time.hpp>
+
+
+namespace {
+
+    template <uint64_t base, uint64_t exp>
+    constexpr uint64_t int_pow() {
+        uint64_t result = 1;
+        for (size_t i = 0; i < exp; ++i) {
+            result *= base;
+        }
+        return result;
+    }
+
+    constexpr auto TIMESTAMP_UNITS = ::int_pow<2, 31>() - 1;
+    constexpr auto TIMESTAMP_FACTOR = TIMESTAMP_UNITS / (60.0 * 60.0);
+
+}  // namespace
 
 
 namespace disordat {
@@ -121,6 +139,38 @@ namespace disordat {
 }  // namespace disordat
 
 
+// Timestamp
+namespace disordat {
+
+    double Timestamp::get_sec() const {
+        const auto ptr = reinterpret_cast<const uint32_t*>(value_.data());
+        auto x = sung::flip_byte_order(*ptr);
+        x >>= 1;
+        return x / TIMESTAMP_FACTOR;
+    }
+
+    uint8_t Timestamp::get_mode() const {
+        const auto ptr = reinterpret_cast<const uint32_t*>(value_.data());
+        auto x = sung::flip_byte_order(*ptr);
+        return x & 0x01;
+    }
+
+    std::string Timestamp::make_readable() const {
+        return fmt::format("{} ({})", this->get_sec(), this->get_mode());
+    }
+
+    void Timestamp::set_now() {
+        const auto now = sung::get_time_unix();
+        auto ptr = reinterpret_cast<uint32_t*>(value_.data());
+        *ptr = static_cast<uint32_t>(now * TIMESTAMP_FACTOR);
+        *ptr <<= 1;
+        *ptr &= 0xFFFFFFFE;
+        *ptr = sung::flip_byte_order(*ptr);
+    }
+
+}  // namespace disordat
+
+
 // PduHeader
 namespace disordat {
 
@@ -137,7 +187,7 @@ namespace disordat {
         exercise_id_ = 1;
         pdu_type_ = 0;
         protocol_family_ = 5;
-        timestamp_.set(sung::get_time_unix());
+        timestamp_.set_now();
         length_ = 0;
         padding_ = 0;
         return *this;
@@ -149,7 +199,7 @@ namespace disordat {
     }
 
     PduHeader& PduHeader::set_timestamp() {
-        timestamp_.set(sung::get_time_unix());
+        timestamp_.set_now();
         return *this;
     }
 
@@ -298,7 +348,7 @@ namespace disordat {
             header_.exercise_id_,
             header_.pdu_type_str(),
             header_.protocol_family_,
-            header_.timestamp_.get(),
+            header_.timestamp_.make_readable(),
             header_.length_.get()
         );
 

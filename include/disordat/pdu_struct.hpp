@@ -1,5 +1,7 @@
 #pragma once
 
+#include <array>
+
 #include <glm/vec3.hpp>
 #include <sung/general/angle.hpp>
 #include <sung/general/bytes.hpp>
@@ -70,6 +72,20 @@ namespace disordat {
     std::string to_str(const Vec3& v);
 
 
+    class Timestamp {
+
+    public:
+        double get_sec() const;
+        uint8_t get_mode() const;
+        std::string make_readable() const;
+
+        void set_now();
+
+    private:
+        std::array<unsigned char, 4> value_;
+    };
+
+
     class PduHeader {
 
     public:
@@ -85,7 +101,7 @@ namespace disordat {
         uint8_t exercise_id_;
         uint8_t pdu_type_;
         uint8_t protocol_family_;
-        sung::BEValue<uint32_t> timestamp_;
+        Timestamp timestamp_;
         sung::BEValue<uint16_t> length_;
         sung::BEValue<uint16_t> padding_;
     };

@@ -598,6 +598,10 @@ namespace {
             //     pdu_header->pdu_type_str()
             // );
 
+            SPDLOG_INFO(
+                "Timestamp: {}", pdu_header->timestamp_.make_readable()
+            );
+
             std::stringstream ss;
             ss << fmt::format("\nBytes ({})\n", bytes_transferred);
             //::print_bytes(recv_buffer_.data(), bytes_transferred, 16, 2);
