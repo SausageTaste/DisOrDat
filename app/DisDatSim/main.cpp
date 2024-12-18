@@ -332,8 +332,9 @@ namespace {
 
             pos_.integrate(dt);
             pos_.reset_acc();
-            pos_.add_acc(this->entt_front() * 500.0);
+            pos_.add_acc(this->entt_front() * speed_.ms());
             pos_.add_acc(pos_.vel() * -1.0);
+            pos_.add_acc(glm::normalize(pos_.pos()) * (-9.8));
         }
 
         void set_pos(const glm::dvec3& v) { pos_.set_pos(v); }
@@ -366,11 +367,11 @@ namespace {
             const auto dst_up_align = glm::dot(direc, this->entt_up());
 
             if (dst_up_align > 0) {
-                ori_.vel_roll_ = dst_right_align * 0.5;
-                ori_.vel_elev_ = dst_up_align * 0.5;
+                ori_.vel_roll_ = dst_right_align * 0.4;
+                ori_.vel_elev_ = dst_up_align * 0.2;
             } else {
                 const auto dst_ailer = sung::signum(dst_right_align);
-                ori_.vel_roll_ = dst_ailer * 0.5;
+                ori_.vel_roll_ = dst_ailer * 0.2;
             }
         }
 
@@ -409,7 +410,7 @@ namespace {
                 if (auto target_pos = remote_entt_.select_target_pos()) {
                     const auto to_target = *target_pos - entt->pos();
                     entt->perform_head_along(dt, to_target);
-                    entt->set_speed(disordat::Speed::from_kts(1500));
+                    entt->set_speed(disordat::Speed::from_kts(700));
                 } else {
                     SPDLOG_WARN("No target found");
                 }
