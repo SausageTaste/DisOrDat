@@ -15,8 +15,8 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/quaternion.hpp>
 #include <glm/gtx/euler_angles.hpp>
-#include <sung/basic/time.hpp>
 #include <sung/basic/optional.hpp>
+#include <sung/basic/time.hpp>
 
 #include "disordat/pdu_struct.hpp"
 
@@ -167,7 +167,8 @@ namespace {
                 return e;
             }
 
-            void erase_if(std::function<bool(const std::string&, Entity&)> pred
+            void erase_if(
+                std::function<bool(const std::string&, Entity&)> pred
             ) {
                 std::lock_guard<std::mutex> lock(mutsuki_);
 
