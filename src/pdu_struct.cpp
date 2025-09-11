@@ -4,7 +4,7 @@
 #include <sstream>
 
 #include <spdlog/spdlog.h>
-#include <sung/general/time.hpp>
+#include <sung/basic/time.hpp>
 
 
 namespace {

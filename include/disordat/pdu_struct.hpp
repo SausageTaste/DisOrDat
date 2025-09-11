@@ -3,9 +3,9 @@
 #include <array>
 
 #include <glm/vec3.hpp>
-#include <sung/general/angle.hpp>
-#include <sung/general/bytes.hpp>
-#include <sung/general/units.hpp>
+#include <sung/basic/angle.hpp>
+#include <sung/basic/bytes.hpp>
+#include <sung/basic/units.hpp>
 
 
 namespace disordat {

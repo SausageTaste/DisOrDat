@@ -5,6 +5,8 @@ set(CMAKE_TOOLCHAIN_FILE "$ENV{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake")
 project(DisOrDat)
 
 
+add_subdirectory(extern/sungtools)
+
 find_package(asio CONFIG REQUIRED)
 find_package(glm CONFIG REQUIRED)
 find_package(spdlog CONFIG REQUIRED)
@@ -20,9 +22,8 @@ target_include_directories(DisOrDat PUBLIC
 target_link_libraries(DisOrDat PUBLIC
     glm::glm
     spdlog::spdlog
-    sungtools::general
+    sungtools::sungtools_basic
 )
 
 
-add_subdirectory(extern/SungToolsCpp)
 add_subdirectory(app)
