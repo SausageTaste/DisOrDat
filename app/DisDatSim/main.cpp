@@ -8,9 +8,6 @@
 #include <unordered_map>
 
 #define GLM_ENABLE_EXPERIMENTAL
-#define SPDLOG_ACTIVE_LEVEL 0
-#include <spdlog/fmt/fmt.h>
-#include <spdlog/spdlog.h>
 #include <asio.hpp>
 #include <glm/glm.hpp>
 #include <glm/gtc/quaternion.hpp>
@@ -19,12 +16,13 @@
 #include <sung/basic/time.hpp>
 
 #include "disordat/pdu_struct.hpp"
+#include "disordat/spdlog.hpp"
 
 
 namespace {
 
-    int SITE_ID = 1;
-    int APP_ID = 3003;
+    constexpr int SITE_ID = 1;
+    constexpr int APP_ID = 3003;
 
     const glm::dvec3 CENTER_TO_PRIME_MERIDIAN{ 1, 0, 0 };
     const glm::dvec3 CENTER_TO_ASIA{ 0, 1, 0 };
