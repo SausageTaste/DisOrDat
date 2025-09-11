@@ -5,4 +5,4 @@ target_include_directories(DisDatSim PUBLIC
 target_link_libraries(DisDatSim
     DisOrDat::DisOrDat
 )
-target_compile_features(DisDatSim PUBLIC cxx_std_23)
+target_compile_features(DisDatSim PUBLIC cxx_std_20)
