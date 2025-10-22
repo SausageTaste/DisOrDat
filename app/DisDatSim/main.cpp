@@ -340,16 +340,12 @@ namespace {
             return glm::dvec3(ori_.vel_roll_, ori_.vel_elev_, ori_.vel_head_);
         }
 
-        glm::dvec3 entt_front() const { return ori_.entt_front(); }
-        glm::dvec3 entt_up() const { return ori_.entt_up(); }
-        glm::dvec3 entt_right() const { return ori_.entt_right(); }
-
         void update(double dt) {
             ori_.integrate(dt);
 
             pos_.integrate(dt);
             pos_.reset_acc();
-            pos_.add_acc(this->entt_front() * speed_.ms());
+            pos_.add_acc(ori_.entt_front() * speed_.ms());
             pos_.add_acc(pos_.vel() * -1.0);
             pos_.add_acc(glm::normalize(pos_.pos()) * (-9.8));
         }
@@ -364,24 +360,24 @@ namespace {
 
             // Adjust roll
             {
-                const auto align = glm::dot(anti_gravity_n, this->entt_right());
+                const auto align = glm::dot(anti_gravity_n, ori_.entt_right());
                 ori_.vel_roll_ = align;
             }
 
             // Adjust elevation
             {
-                const auto align = glm::dot(anti_gravity_n, this->entt_front());
+                const auto align = glm::dot(anti_gravity_n, ori_.entt_front());
                 ori_.vel_elev_ = align;
             }
         }
 
         void perform_head_along(double dt, glm::dvec3 direc) {
             direc = glm::normalize(direc);
-            const auto dst_front_align = glm::dot(direc, this->entt_front());
+            const auto dst_front_align = glm::dot(direc, ori_.entt_front());
             const auto angle_off = sung::acos_safe(dst_front_align);
 
-            const auto dst_right_align = glm::dot(direc, this->entt_right());
-            const auto dst_up_align = glm::dot(direc, this->entt_up());
+            const auto dst_right_align = glm::dot(direc, ori_.entt_right());
+            const auto dst_up_align = glm::dot(direc, ori_.entt_up());
 
             if (dst_up_align > 0) {
                 ori_.vel_roll_ = dst_right_align * 0.4;
