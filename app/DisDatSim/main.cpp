@@ -408,7 +408,7 @@ namespace {
         Scene() {
             const glm::dvec3 init_pos(-3049328.82, 4049133.27, 3859976.86);
             auto e = std::make_shared<SimpleFixedWing>();
-            e->name_ = "Jay 20 fixed wing";
+            e->name_ = "Jay 10 fixed wing";
             e->dis_id_ = 1;
             e->set_pos(init_pos);
             local_entt_.push_back(e);
@@ -536,8 +536,8 @@ namespace {
                 pdu.entt_id_.set(::SITE_ID, ::APP_ID, e->dis_id_);
                 pdu.force_id_ = 2;
                 pdu.num_of_articulation_param_ = 0;
-                pdu.entt_type_.set(1, 2, 45, 1, 7, 0, 0);
-                pdu.alt_entt_type_.set(1, 1, 225, 1, 1, 1, 0);
+                pdu.entt_type_.set(1, 2, 45, 1, 5, 6, 0);
+                pdu.alt_entt_type_.set(1, 2, 45, 1, 5, 6, 0);
                 pdu.entt_linear_vel_.set(e->vel());
                 pdu.entt_loc_.set(e->pos());
                 pdu.entt_orient_.set(e->make_eular());
