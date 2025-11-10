@@ -508,12 +508,8 @@ namespace {
 
     private:
         void start_tick() {
-            constexpr auto PACKETS_PER_SEC = 2.0;
-            constexpr auto MS_INTERVAL = 1000.0 / PACKETS_PER_SEC;
-            constexpr auto MS_INTERVAL_INT = static_cast<int>(MS_INTERVAL);
-            tick_timer_ = asio::steady_timer(
-                io_context_, std::chrono::milliseconds(MS_INTERVAL_INT)
-            );
+            constexpr std::chrono::milliseconds INTERVAL{ 500 };
+            tick_timer_ = asio::steady_timer(io_context_, INTERVAL);
             tick_timer_.async_wait(std::bind(&UdpRadioTower::tick, this));
         }
 
