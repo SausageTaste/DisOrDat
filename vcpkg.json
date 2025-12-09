@@ -3,5 +3,6 @@
         "asio",
         "glm",
         "spdlog"
-    ]
+    ],
+    "builtin-baseline": "5dfa11cf88a8da8877b54fcbc5f6db78bc13f75a"
 }
